@@ -1,0 +1,226 @@
+package require tcltest
+namespace import tcltest::*
+
+# Add module dir to tm paths
+set ThisScriptDir [file dirname [info script]]
+set ModuleDir [file normalize [file join $ThisScriptDir ..]]
+::tcl::tm::path add $ModuleDir
+
+package require xproc
+
+
+xproc::proc addNums2 {a b} {
+  expr {$a+$b}
+} -description {
+  Add two numbers together and return the result
+
+  This could work as follows:
+    addNums 7 9      ; # Would return 16
+} -test {{t} {
+  set cases {
+    {input {7 9} want 16}
+    {input {2 3} want 18}
+    {input {2 4} want 6}
+  }
+  set i 0
+  foreach c $cases {
+    dict with c {
+      set got [addNums2 {*}$input]
+      if {$got != $want} {
+        xproc::testError $t "($i) got: $got, want: $want"
+      }
+    }
+    incr i
+  }
+}}
+
+
+xproc::proc addNums3 {a b} {
+  expr {$a+$b}
+} -description {
+  Add two numbers together and return the result
+
+  This could work as follows:
+    addNums 7 9      ; # Would return 16
+} -test {{t} {
+  set cases {
+    {input {7 9} want 15}
+    {input {2 3} want 5}
+    {input {2 4} want 7}
+  }
+  xproc::testCases $t $cases {{input} {addNums3 {*}$input}}
+}}
+
+
+xproc::proc addNums4 {a b} {
+  expr {$a+$b}
+} -description {
+  Add two numbers together and return the result
+
+  This could work as follows:
+    addNums 7 9      ; # Would return 16
+} -test {{t} {
+  set cases {
+    {input {7 9} want 16}
+    {input {2 3} want 5}
+    {input {2 4} want 6}
+  }
+  xproc::testCases $t $cases {{input} {addNums4 {*}$input}}
+}}
+
+xproc::proc subNums {a b} {
+  expr {$a-$b}
+} -description {
+  Subtract one number from another and return the result
+
+  This could work as follows:
+    subNums 7 9      ; # Would return -2
+} -test {{t} {
+  set cases {
+    {input {7 9} want -2}
+    {input {5 4} want 1}
+    {input {2 4} want -2}
+    {input {4 4} want 0}
+  }
+  xproc::testCases $t $cases {{input} {subNums {*}$input}}
+}}
+
+
+xproc::proc raiseErrorCmd {a b} {
+  expr {$a-$c}
+} -description {
+  Raises an error because $c doesn't exist
+} -test {{t} {
+  raiseErrorCmd 4 5
+}}
+
+
+test proc-1 {Allows normal definition of a proc} -body {
+  xproc::proc addNums {a b} {expr {$a+$b}}
+  addNums 7 9
+} -result {16}
+
+
+test runTests-1 {Provide correct test output} -body {
+  xproc::runTests
+} -output {--- FAIL  addNums2
+---       (1) got: 5, want: 18
+--- FAIL  addNums3
+---       (0) got: 16, want: 15
+--- FAIL  addNums3
+---       (2) got: 6, want: 7
+--- FAIL  raiseErrorCmd
+---       can't read "c": no such variable
+              while executing
+          "expr {$a-$c}"
+              (procedure "raiseErrorCmd" line 2)
+              invoked from within
+          "raiseErrorCmd 4 5"
+
+Total:  5,  Passed:   2,   Failed:   3
+} -result 3
+
+
+test runTests-2 {Provide extra test output with -verbose} -body {
+  xproc::runTests -verbose
+} -output {=== RUN   addNums2
+--- FAIL  addNums2
+---       (1) got: 5, want: 18
+=== RUN   addNums3
+--- FAIL  addNums3
+---       (0) got: 16, want: 15
+--- FAIL  addNums3
+---       (2) got: 6, want: 7
+=== RUN   addNums4
+--- PASS  addNums4
+=== RUN   subNums
+--- PASS  subNums
+=== RUN   raiseErrorCmd
+--- FAIL  raiseErrorCmd
+---       can't read "c": no such variable
+              while executing
+          "expr {$a-$c}"
+              (procedure "raiseErrorCmd" line 2)
+              invoked from within
+          "raiseErrorCmd 4 5"
+
+Total:  5,  Passed:   2,   Failed:   3
+} -result 3
+
+
+test descriptions-1 {Return descriptions} -body {
+  xproc::descriptions
+} -result [dict create addNums2 {Add two numbers together and return the result
+
+This could work as follows:
+  addNums 7 9      ; # Would return 16} \
+addNums3 {Add two numbers together and return the result
+
+This could work as follows:
+  addNums 7 9      ; # Would return 16} \
+addNums4 {Add two numbers together and return the result
+
+This could work as follows:
+  addNums 7 9      ; # Would return 16} \
+subNums {Subtract one number from another and return the result
+
+This could work as follows:
+  subNums 7 9      ; # Would return -2} \
+raiseErrorCmd {Raises an error because $c doesn't exist}]
+
+
+test TidyDescription-1 {Check that simple single line description works} \
+-setup {
+  set description {this is a description}
+} -body {
+  ::xproc::TidyDescription $description
+} -result {this is a description}
+
+
+test TidyDescription-2 {Check that description starting on new line has newlines stripped before and after} -setup {
+  set description {
+    this is a description
+  }
+} -body {
+  ::xproc::TidyDescription $description
+} -result {this is a description}
+
+
+test TidyDescription-3 {Check that indentation is stripped from first line and everything else lines up with that using spaces} -setup {
+  set description {
+    this is a description
+
+    this is some more text on another
+    line to see if everything is aligned properly
+      this text is indent further
+
+      as is this line
+        even futher down here
+  }
+} -body {
+  ::xproc::TidyDescription $description
+} -result {this is a description
+
+this is some more text on another
+line to see if everything is aligned properly
+  this text is indent further
+
+  as is this line
+    even futher down here}
+
+
+test TidyDescription-4 {Check that if first line isn't a new line then indentation will still be aligned against this and hence is a bad idea as a description} -setup {
+  set description {this is a description without a leading newline
+
+    this is some more text on another
+    line to see if everything is aligned properly
+  }
+} -body {
+  ::xproc::TidyDescription $description
+} -result {this is a description without a leading newline
+
+    this is some more text on another
+    line to see if everything is aligned properly}
+
+
+cleanupTests
