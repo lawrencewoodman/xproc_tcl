@@ -15,7 +15,7 @@ xproc::proc addNums2 {a b} {
   Add two numbers together and return the result
 
   This could work as follows:
-    addNums 7 9      ; # Would return 16
+    addNums2 7 9      ; # Would return 16
 } -test {{t} {
   set cases {
     {input {7 9} want 16}
@@ -41,7 +41,7 @@ xproc::proc addNums3 {a b} {
   Add two numbers together and return the result
 
   This could work as follows:
-    addNums 7 9      ; # Would return 16
+    addNums3 7 9      ; # Would return 16
 } -test {{t} {
   set cases {
     {input {7 9} want 15}
@@ -58,7 +58,7 @@ xproc::proc addNums4 {a b} {
   Add two numbers together and return the result
 
   This could work as follows:
-    addNums 7 9      ; # Would return 16
+    addNums4 7 9      ; # Would return 16
 } -test {{t} {
   set cases {
     {input {7 9} want 16}
@@ -67,6 +67,26 @@ xproc::proc addNums4 {a b} {
   }
   xproc::testCases $t $cases {{input} {addNums4 {*}$input}}
 }}
+
+
+proc addNums5 {a b} {
+  expr {$a+$b}
+}
+xproc::describe addNums5 {
+  Add two numbers together and return the result
+
+  This could work as follows:
+    addNums5 7 9      ; # Would return 16
+}
+xproc::test addNums5 {{t} {
+  set cases {
+    {input {7 9} want 16}
+    {input {2 3} want 18}
+    {input {2 4} want 6}
+  }
+  xproc::testCases $t $cases {{input} {addNums5 {*}$input}}
+}}
+
 
 xproc::proc subNums {a b} {
   expr {$a-$b}
@@ -109,6 +129,8 @@ test runTests-1 {Provide correct test output} -body {
 ---       (0) got: 16, want: 15
 --- FAIL  addNums3
 ---       (2) got: 6, want: 7
+--- FAIL  addNums5
+---       (1) got: 5, want: 18
 --- FAIL  raiseErrorCmd
 ---       can't read "c": no such variable
               while executing
@@ -116,9 +138,19 @@ test runTests-1 {Provide correct test output} -body {
               (procedure "raiseErrorCmd" line 2)
               invoked from within
           "raiseErrorCmd 4 5"
+              (lambda term "{t} {
+            raiseErrorCmd 4 5
+          }" line 2)
+              invoked from within
+          "apply {{t} {
+            raiseErrorCmd 4 5
+          }} raiseErrorCmd"
+              ("uplevel" body line 1)
+              invoked from within
+          "uplevel 1 [list apply [dict get $test lambda] $commandName]"
 
-Total:  5,  Passed:   2,   Failed:   3
-} -result 3
+Total:  6,  Passed:   2,   Failed:   4
+} -result 4
 
 
 test runTests-2 {Provide extra test output with -verbose} -body {
@@ -133,6 +165,9 @@ test runTests-2 {Provide extra test output with -verbose} -body {
 ---       (2) got: 6, want: 7
 === RUN   addNums4
 --- PASS  addNums4
+=== RUN   addNums5
+--- FAIL  addNums5
+---       (1) got: 5, want: 18
 === RUN   subNums
 --- PASS  subNums
 === RUN   raiseErrorCmd
@@ -143,9 +178,19 @@ test runTests-2 {Provide extra test output with -verbose} -body {
               (procedure "raiseErrorCmd" line 2)
               invoked from within
           "raiseErrorCmd 4 5"
+              (lambda term "{t} {
+            raiseErrorCmd 4 5
+          }" line 2)
+              invoked from within
+          "apply {{t} {
+            raiseErrorCmd 4 5
+          }} raiseErrorCmd"
+              ("uplevel" body line 1)
+              invoked from within
+          "uplevel 1 [list apply [dict get $test lambda] $commandName]"
 
-Total:  5,  Passed:   2,   Failed:   3
-} -result 3
+Total:  6,  Passed:   2,   Failed:   4
+} -result 4
 
 
 test descriptions-1 {Return descriptions} -body {
@@ -153,15 +198,19 @@ test descriptions-1 {Return descriptions} -body {
 } -result [dict create addNums2 {Add two numbers together and return the result
 
 This could work as follows:
-  addNums 7 9      ; # Would return 16} \
+  addNums2 7 9      ; # Would return 16} \
 addNums3 {Add two numbers together and return the result
 
 This could work as follows:
-  addNums 7 9      ; # Would return 16} \
+  addNums3 7 9      ; # Would return 16} \
 addNums4 {Add two numbers together and return the result
 
 This could work as follows:
-  addNums 7 9      ; # Would return 16} \
+  addNums4 7 9      ; # Would return 16} \
+addNums5 {Add two numbers together and return the result
+
+This could work as follows:
+  addNums5 7 9      ; # Would return 16} \
 subNums {Subtract one number from another and return the result
 
 This could work as follows:

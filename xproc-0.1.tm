@@ -13,8 +13,6 @@ namespace eval xproc {
 
 
 proc xproc::proc {commandName commandArgs commandBody args} {
-  variable tests
-  variable descriptions
   array set options {}
   while {[llength $args]} {
     switch -glob -- [lindex $args 0] {
@@ -28,19 +26,31 @@ proc xproc::proc {commandName commandArgs commandBody args} {
   }
 
   if {[info exists options(description)]} {
-    dict set descriptions $commandName [TidyDescription $options(description)]
+    describe $commandName $options(description)
   }
 
   if {[info exists options(test)]} {
-    # TODO: Ensure works within namespace eval, so perhaps need to get
-    # TODO: namespace and prepend commandName with that
-    dict set tests $commandName [
-      dict create lambda $options(test) fail false
-    ]
+    test $commandName $options(test)
   }
 
   # TODO: Is uplevel needed here?
   uplevel 1 [list proc $commandName $commandArgs $commandBody]
+}
+
+
+proc xproc::test {commandName lambda} {
+  variable tests
+  # TODO: Ensure works within namespace eval, so perhaps need to get
+  # TODO: namespace and prepend commandName with that
+  dict set tests $commandName [
+    dict create lambda $lambda fail false
+  ]
+}
+
+
+proc xproc::describe {commandName description} {
+  variable descriptions
+  dict set descriptions $commandName [TidyDescription $description]
 }
 
 
@@ -71,7 +81,6 @@ proc xproc::runTests {args} {
       uplevel 1 [list apply [dict get $test lambda] $commandName]
     } on error {result returnOptions} {
       set errorInfo [dict get $returnOptions -errorinfo]
-      set errorInfo [join [lrange [split $errorInfo "\n"] 0 5] "\n"]
       puts "--- FAIL  $commandName"
       puts "---       [IndentEachLine $errorInfo 10 1]"
       dict set tests $commandName fail true
