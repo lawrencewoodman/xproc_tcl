@@ -94,7 +94,10 @@ proc xproc::runTests {args} {
       # TODO: time test
     }
   }
-  PrintSummary $tests
+  set summary [MakeSummary $tests]
+  dict with summary {
+    puts "\nTotal:  $total,  Passed:   $passed,   Failed:   $failed"
+  }
   return $numFail
 }
 
@@ -129,31 +132,69 @@ proc xproc::descriptions {} {
   return $descriptions
 }
 
-proc xproc::PrintSummary {tests} {
+xproc::proc xproc::MakeSummary {tests} {
   set total [llength [dict keys $tests]]
   set failed 0
   dict for {commandName test} $tests {
     if {[dict get $test fail]} {incr failed}
   }
   set passed [expr {$total-$failed}]
-  puts "\nTotal:  $total,  Passed:   $passed,   Failed:   $failed"
-}
+  return [dict create total $total passed $passed failed $failed]
+} -test {{t} {
+  set cases [list \
+    [dict create input {} \
+     want [dict create total 0 passed 0 failed 0]] \
+    [dict create input {name-1 {fail true}} \
+     want [dict create total 1 passed 0 failed 1]] \
+    [dict create input {name-1 {fail false}} \
+     want [dict create total 1 passed 1 failed 0]] \
+    [dict create input {name-1 {fail false} name-2 {fail false}} \
+     want [dict create total 2 passed 2 failed 0]] \
+    [dict create input {name-1 {fail true} name-2 {fail false}} \
+     want [dict create total 2 passed 1 failed 1]] \
+    [dict create input {name-1 {fail false} name-2 {fail true}} \
+     want [dict create total 2 passed 1 failed 1]] \
+    [dict create input {name-1 {fail true} name-2 {fail true}} \
+     want [dict create total 2 passed 0 failed 2]] \
+  ]
+  xproc::testCases $t $cases {{input} {xproc::MakeSummary $input}}
+}}
 
-proc xproc::IndentEachLine {text numSpaces ignoreLines} {
+
+xproc::proc xproc::IndentEachLine {text numSpaces ignoreLines} {
   set lines [split $text "\n"]
   set i 0
   foreach line $lines {
-    if {$i < $ignoreLines} {
+    if {$i < $ignoreLines || $line eq ""} {
       lappend indentedLines $line
     } else {
+
       lappend indentedLines "[string repeat " " $numSpaces]$line"
     }
     incr i
   }
   return [join $indentedLines "\n"]
-}
+} -test {{t} {
+  set text {this is some text
+and a little more
 
-proc xproc::CountIndent {line} {
+and some more here
+    this has some more
+ and a little less indented}
+  set want {this is some text
+          and a little more
+
+          and some more here
+              this has some more
+           and a little less indented}
+  set got [xproc::IndentEachLine $text 10 1]
+  if {$got ne $want} {
+    xproc::testError $t "got: $got, want: $want"
+  }
+}}
+
+
+xproc::proc xproc::CountIndent {line} {
   set count 0
   for {set i 0} {$i < [string length $line]} {incr i} {
     if {[string index $line $i] eq " "} {
@@ -163,9 +204,18 @@ proc xproc::CountIndent {line} {
     }
   }
   return $count
-}
+} -test {{t} {
+  set cases {
+    {input {hello this is some text} want 0}
+    {input {  hello this is some text} want 2}
+    {input {  hello this is some text   } want 2}
+    {input {    hello this is some text } want 4}
+  }
+  xproc::testCases $t $cases {{input} {xproc::CountIndent $input}}
+}}
 
-proc xproc::StripIndent {lines numSpaces} {
+
+xproc::proc xproc::StripIndent {lines numSpaces} {
   set newLines [list]
   foreach line $lines {
     for {set i 0} {$i < [string length $line] && $i < $numSpaces} {incr i} {
@@ -174,9 +224,74 @@ proc xproc::StripIndent {lines numSpaces} {
     lappend newLines [string range $line $i end]
   }
   return $newLines
-}
+} -test {{t} {
+  set cases {
+    {input {
+      { "hello some text"
+        " some more text"
+        "and a little more"
+        "   guess what"
+      } 0} want {
+        "hello some text"
+        " some more text"
+        "and a little more"
+        "   guess what"
+      }}
+    {input {
+      { "hello some text"
+        " some more text"
+        "and a little more"
+        "   guess what"
+      } 1} want {
+        "hello some text"
+        "some more text"
+        "and a little more"
+        "  guess what"
+      }}
+    {input {
+      { "hello some text"
+        " some more text"
+        "and a little more"
+        "   guess what"
+      } 2} want {
+        "hello some text"
+        "some more text"
+        "and a little more"
+        " guess what"
+      }}
+    {input {
+      { "hello some text"
+        " some more text"
+        "and a little more"
+        "   guess what"
+      } 3} want {
+        "hello some text"
+        "some more text"
+        "and a little more"
+        "guess what"
+      }}
+  }
+  set i 0
+  foreach c $cases {
+    dict with c {
+      set got [xproc::StripIndent {*}$input]
+      if {[llength $got] != [llength $want]} {
+        xproc::testError $t "($i) got: $got, want: $want"
+      } else {
+        foreach g $got w $want {
+          if {$g ne $w} {
+            xproc::testError $t "($i) got: $got, want: $want"
+            break
+          }
+        }
+      }
+    }
+    incr i
+  }
+}}
 
-proc xproc::TidyDescription {description} {
+
+xproc::proc xproc::TidyDescription {description} {
   set description [string trimright $description]
   set lines [split $description "\n"]
 
@@ -190,4 +305,42 @@ proc xproc::TidyDescription {description} {
   set normalIndent [CountIndent [lindex $lines 0]]
   set lines [StripIndent $lines $normalIndent]
   return [join $lines "\n"]
-}
+} -test {{t} {
+  set cases {
+    { input {this is a description}
+      want {this is a description}}
+    { input {
+        this is a description
+      }
+      want {this is a description}}
+    { input {
+        this is a description
+
+        this is some more text on another
+        line to see if everything is aligned properly
+          this text is indent further
+
+          as is this line
+            even futher down here
+      }
+      want {this is a description
+
+this is some more text on another
+line to see if everything is aligned properly
+  this text is indent further
+
+  as is this line
+    even futher down here}}
+    { input {this is a description without a leading newline
+
+        this is some more text on another
+        line to see if everything is aligned properly
+      }
+      want {this is a description without a leading newline
+
+        this is some more text on another
+        line to see if everything is aligned properly}}
+  }
+
+  xproc::testCases $t $cases {{input} {xproc::TidyDescription $input}}
+}}

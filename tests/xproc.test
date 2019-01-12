@@ -149,13 +149,23 @@ test runTests-1 {Provide correct test output} -body {
               invoked from within
           "uplevel 1 [list apply [dict get $test lambda] $commandName]"
 
-Total:  6,  Passed:   2,   Failed:   4
+Total:  11,  Passed:   7,   Failed:   4
 } -result 4
 
 
 test runTests-2 {Provide extra test output with -verbose} -body {
   xproc::runTests -verbose
-} -output {=== RUN   addNums2
+} -output {=== RUN   xproc::MakeSummary
+--- PASS  xproc::MakeSummary
+=== RUN   xproc::IndentEachLine
+--- PASS  xproc::IndentEachLine
+=== RUN   xproc::CountIndent
+--- PASS  xproc::CountIndent
+=== RUN   xproc::StripIndent
+--- PASS  xproc::StripIndent
+=== RUN   xproc::TidyDescription
+--- PASS  xproc::TidyDescription
+=== RUN   addNums2
 --- FAIL  addNums2
 ---       (1) got: 5, want: 18
 === RUN   addNums3
@@ -189,7 +199,7 @@ test runTests-2 {Provide extra test output with -verbose} -body {
               invoked from within
           "uplevel 1 [list apply [dict get $test lambda] $commandName]"
 
-Total:  6,  Passed:   2,   Failed:   4
+Total:  11,  Passed:   7,   Failed:   4
 } -result 4
 
 
