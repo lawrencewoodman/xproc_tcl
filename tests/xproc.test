@@ -115,6 +115,46 @@ xproc::proc raiseErrorCmd {a b} {
 }}
 
 
+namespace eval aTestNamespace {
+  xproc::proc cmdA {} {
+    return "defined inside eval aTestNamespace"
+  } -description {
+    this is a description of cmdA
+  } -test {{t} {
+    set got [cmdA]
+    set want "defined inside eval aTestNamespace"
+    if {$got ne $want} {
+      xproc::testError $t "got: $got, want: $want"
+    }
+  } aTestNamespace}
+}
+
+xproc::proc aTestNamespace::cmdB {} {
+  return "defined outside eval aTestNamespace"
+} -description {
+  this is a description of cmdB
+} -test {{t} {
+  set got [aTestNamespace::cmdB]
+  set want "defined outside eval aTestNamespace"
+  if {$got ne $want} {
+    xproc::testError $t "got: $got, want: $want"
+  }
+}}
+
+
+xproc::proc ::aTestNamespace::cmdC {} {
+  return "defined outside eval aTestNamespace"
+} -description {
+  this is a description of cmdC
+} -test {{t} {
+  set got [aTestNamespace::cmdC]
+  set want "defined outside eval aTestNamespace"
+  if {$got ne $want} {
+    xproc::testError $t "got: $got, want: $want"
+  }
+}}
+
+
 test proc-1 {Allows normal definition of a proc} -body {
   xproc::proc addNums {a b} {expr {$a+$b}}
   addNums 7 9
@@ -123,15 +163,15 @@ test proc-1 {Allows normal definition of a proc} -body {
 
 test runTests-1 {Provide correct test output} -body {
   xproc::runTests
-} -output {--- FAIL  addNums2
+} -output {--- FAIL  ::addNums2
 ---       (1) got: 5, want: 18
---- FAIL  addNums3
+--- FAIL  ::addNums3
 ---       (0) got: 16, want: 15
---- FAIL  addNums3
+--- FAIL  ::addNums3
 ---       (2) got: 6, want: 7
---- FAIL  addNums5
+--- FAIL  ::addNums5
 ---       (1) got: 5, want: 18
---- FAIL  raiseErrorCmd
+--- FAIL  ::raiseErrorCmd
 ---       can't read "c": no such variable
               while executing
           "expr {$a-$c}"
@@ -144,44 +184,44 @@ test runTests-1 {Provide correct test output} -body {
               invoked from within
           "apply {{t} {
             raiseErrorCmd 4 5
-          }} raiseErrorCmd"
+          }} ::raiseErrorCmd"
               ("uplevel" body line 1)
               invoked from within
-          "uplevel 1 [list apply [dict get $test lambda] $commandName]"
+          "uplevel 1 [list apply $lambda $commandName]"
 
-Total:  11,  Passed:   7,   Failed:   4
+Total: 14,  Passed: 10,  Failed: 4
 } -result 4
 
 
 test runTests-2 {Provide extra test output with -verbose} -body {
   xproc::runTests -verbose
-} -output {=== RUN   xproc::MakeSummary
---- PASS  xproc::MakeSummary
-=== RUN   xproc::IndentEachLine
---- PASS  xproc::IndentEachLine
-=== RUN   xproc::CountIndent
---- PASS  xproc::CountIndent
-=== RUN   xproc::StripIndent
---- PASS  xproc::StripIndent
-=== RUN   xproc::TidyDescription
---- PASS  xproc::TidyDescription
-=== RUN   addNums2
---- FAIL  addNums2
+} -output {=== RUN   ::xproc::MakeSummary
+--- PASS  ::xproc::MakeSummary
+=== RUN   ::xproc::IndentEachLine
+--- PASS  ::xproc::IndentEachLine
+=== RUN   ::xproc::CountIndent
+--- PASS  ::xproc::CountIndent
+=== RUN   ::xproc::StripIndent
+--- PASS  ::xproc::StripIndent
+=== RUN   ::xproc::TidyDescription
+--- PASS  ::xproc::TidyDescription
+=== RUN   ::addNums2
+--- FAIL  ::addNums2
 ---       (1) got: 5, want: 18
-=== RUN   addNums3
---- FAIL  addNums3
+=== RUN   ::addNums3
+--- FAIL  ::addNums3
 ---       (0) got: 16, want: 15
---- FAIL  addNums3
+--- FAIL  ::addNums3
 ---       (2) got: 6, want: 7
-=== RUN   addNums4
---- PASS  addNums4
-=== RUN   addNums5
---- FAIL  addNums5
+=== RUN   ::addNums4
+--- PASS  ::addNums4
+=== RUN   ::addNums5
+--- FAIL  ::addNums5
 ---       (1) got: 5, want: 18
-=== RUN   subNums
---- PASS  subNums
-=== RUN   raiseErrorCmd
---- FAIL  raiseErrorCmd
+=== RUN   ::subNums
+--- PASS  ::subNums
+=== RUN   ::raiseErrorCmd
+--- FAIL  ::raiseErrorCmd
 ---       can't read "c": no such variable
               while executing
           "expr {$a-$c}"
@@ -194,38 +234,47 @@ test runTests-2 {Provide extra test output with -verbose} -body {
               invoked from within
           "apply {{t} {
             raiseErrorCmd 4 5
-          }} raiseErrorCmd"
+          }} ::raiseErrorCmd"
               ("uplevel" body line 1)
               invoked from within
-          "uplevel 1 [list apply [dict get $test lambda] $commandName]"
+          "uplevel 1 [list apply $lambda $commandName]"
+=== RUN   ::aTestNamespace::cmdA
+--- PASS  ::aTestNamespace::cmdA
+=== RUN   ::aTestNamespace::cmdB
+--- PASS  ::aTestNamespace::cmdB
+=== RUN   ::aTestNamespace::cmdC
+--- PASS  ::aTestNamespace::cmdC
 
-Total:  11,  Passed:   7,   Failed:   4
+Total: 14,  Passed: 10,  Failed: 4
 } -result 4
 
 
 test descriptions-1 {Return descriptions} -body {
   xproc::descriptions
-} -result [dict create addNums2 {Add two numbers together and return the result
+} -result [dict create ::addNums2 {Add two numbers together and return the result
 
 This could work as follows:
   addNums2 7 9      ; # Would return 16} \
-addNums3 {Add two numbers together and return the result
+::addNums3 {Add two numbers together and return the result
 
 This could work as follows:
   addNums3 7 9      ; # Would return 16} \
-addNums4 {Add two numbers together and return the result
+::addNums4 {Add two numbers together and return the result
 
 This could work as follows:
   addNums4 7 9      ; # Would return 16} \
-addNums5 {Add two numbers together and return the result
+::addNums5 {Add two numbers together and return the result
 
 This could work as follows:
   addNums5 7 9      ; # Would return 16} \
-subNums {Subtract one number from another and return the result
+::subNums {Subtract one number from another and return the result
 
 This could work as follows:
   subNums 7 9      ; # Would return -2} \
-raiseErrorCmd {Raises an error because $c doesn't exist}]
+::raiseErrorCmd {Raises an error because $c doesn't exist} \
+::aTestNamespace::cmdA {this is a description of cmdA} \
+::aTestNamespace::cmdB {this is a description of cmdB} \
+::aTestNamespace::cmdC {this is a description of cmdC}]
 
 
 cleanupTests

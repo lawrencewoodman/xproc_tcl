@@ -25,32 +25,34 @@ proc xproc::proc {commandName commandArgs commandBody args} {
     # TODO: Check error above
   }
 
+  uplevel 1 [list proc $commandName $commandArgs $commandBody]
+
   if {[info exists options(description)]} {
-    describe $commandName $options(description)
+    uplevel 1 [list xproc::describe $commandName $options(description)]
   }
 
   if {[info exists options(test)]} {
-    test $commandName $options(test)
+    uplevel 1 [list xproc::test $commandName $options(test)]
   }
-
-  # TODO: Is uplevel needed here?
-  uplevel 1 [list proc $commandName $commandArgs $commandBody]
 }
 
 
 proc xproc::test {commandName lambda} {
   variable tests
-  # TODO: Ensure works within namespace eval, so perhaps need to get
-  # TODO: namespace and prepend commandName with that
-  dict set tests $commandName [
-    dict create lambda $lambda fail false
+  set fullCommandName [
+    uplevel 1 [list namespace which -command $commandName]
   ]
+  dict set tests $fullCommandName [
+    dict create lambda $lambda fail false ]
 }
 
 
 proc xproc::describe {commandName description} {
   variable descriptions
-  dict set descriptions $commandName [TidyDescription $description]
+  set fullCommandName [
+    uplevel 1 [list namespace which -command $commandName]
+  ]
+  dict set descriptions $fullCommandName [TidyDescription $description]
 }
 
 
@@ -78,7 +80,8 @@ proc xproc::runTests {args} {
       puts "=== RUN   $commandName"
     }
     try {
-      uplevel 1 [list apply [dict get $test lambda] $commandName]
+      set lambda [dict get $test lambda]
+      uplevel 1 [list apply $lambda $commandName]
     } on error {result returnOptions} {
       set errorInfo [dict get $returnOptions -errorinfo]
       puts "--- FAIL  $commandName"
@@ -96,7 +99,7 @@ proc xproc::runTests {args} {
   }
   set summary [MakeSummary $tests]
   dict with summary {
-    puts "\nTotal:  $total,  Passed:   $passed,   Failed:   $failed"
+    puts "\nTotal: $total,  Passed: $passed,  Failed: $failed"
   }
   return $numFail
 }
