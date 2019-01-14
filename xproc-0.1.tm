@@ -37,13 +37,54 @@ proc xproc::proc {commandName commandArgs commandBody args} {
 }
 
 
+proc xproc::remove {type args} {
+  variable tests
+  variable descriptions
+  switch $type {
+    tests {
+      set tests [
+        dict filter $tests script {commandName test} {
+          set keep true
+          set ns [namespace qualifier $commandName]
+          if {$ns eq ""} {set ns "::"}
+          foreach nsPattern $args {
+            if {[string match $nsPattern $ns]} {
+              set keep false
+              break
+            }
+          }
+          set keep
+        }
+      ]
+    }
+    descriptions {
+      set descriptions [
+        dict filter $descriptions script {commandName description} {
+          set keep true
+          set ns [namespace qualifier $commandName]
+          if {$ns eq ""} {set ns "::"}
+          foreach nsPattern $args {
+            if {[string match $nsPattern $ns]} {
+              set keep false
+            }
+          }
+          set keep
+        }
+      ]
+    }
+    default {
+      return -code error "invalid type: $type"
+    }
+  }
+}
+
+
 proc xproc::test {commandName lambda} {
   variable tests
   set fullCommandName [
     uplevel 1 [list namespace which -command $commandName]
   ]
-  dict set tests $fullCommandName [
-    dict create lambda $lambda fail false ]
+  dict set tests $fullCommandName [dict create lambda $lambda fail false]
 }
 
 
@@ -104,6 +145,7 @@ proc xproc::runTests {args} {
   return $numFail
 }
 
+
 proc xproc::testError {commandName msg} {
   variable tests
   dict set tests $commandName fail true
@@ -111,9 +153,11 @@ proc xproc::testError {commandName msg} {
   puts "---       $msg"
 }
 
+
 proc xproc::testFatal {commandName msg} {
   return -code error $msg
 }
+
 
 # TODO: Add a way of testing against returnCodes and matchType, etc
 proc xproc::testCases {testState cases lambdaExpr} {
@@ -129,11 +173,13 @@ proc xproc::testCases {testState cases lambdaExpr} {
   }
 }
 
+
 # TODO: Add a -match switch
 proc xproc::descriptions {} {
   variable descriptions
   return $descriptions
 }
+
 
 xproc::proc xproc::MakeSummary {tests} {
   set total [llength [dict keys $tests]]

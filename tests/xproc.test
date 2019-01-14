@@ -8,7 +8,6 @@ set ModuleDir [file normalize [file join $ThisScriptDir ..]]
 
 package require xproc
 
-
 xproc::proc addNums2 {a b} {
   expr {$a+$b}
 } -description {
@@ -155,6 +154,70 @@ xproc::proc ::aTestNamespace::cmdC {} {
 }}
 
 
+# This shouldn't appear in tests or descriptions because is removed in both
+namespace eval bTestNamespace {
+  xproc::proc cmdA {} {
+    return "defined inside eval bTestNamespace"
+  } -description {
+    this is a description of cmdA
+  } -test {{t} {
+    set got [cmdA]
+    set want "defined inside eval bTestNamespace"
+    if {$got ne $want} {
+      xproc::testError $t "got: $got, want: $want"
+    }
+  } bTestNamespace}
+  xproc::proc cmdB {} {
+    return "defined inside eval bTestNamespace"
+  } -description {
+    this is a description of cmdB
+  } -test {{t} {
+    set got [cmdB]
+    set want "defined inside eval bTestNamespace"
+    if {$got ne $want} {
+      xproc::testError $t "got: $got, want: $want"
+    }
+  } bTestNamespace}
+
+}
+
+
+# This shouldn't appear in tests because is removed
+namespace eval cTestNamespace {
+  xproc::proc cmdA {} {
+    return "defined inside eval cTestNamespace"
+  } -description {
+    this is a description of cmdA
+  } -test {{t} {
+    set got [cmdA]
+    set want "defined inside eval cTestNamespace"
+    if {$got ne $want} {
+      xproc::testError $t "got: $got, want: $want"
+    }
+  } cTestNamespace}
+}
+
+
+# This shouldn't appear in descriptions because is removed
+namespace eval dTestNamespace {
+  xproc::proc cmdA {} {
+    return "defined inside eval dTestNamespace"
+  } -description {
+    this is a description of cmdA
+  } -test {{t} {
+    set got [cmdA]
+    set want "defined inside eval dTestNamespace"
+    if {$got ne $want} {
+      xproc::testError $t "got: $got, want: $want"
+    }
+  } dTestNamespace}
+}
+
+# Remove relevant namespaces as described above
+xproc::remove tests ::bTestName* ::cTestName*
+xproc::remove descriptions ::bTestName* ::dTestName*
+
+
 test proc-1 {Allows normal definition of a proc} -body {
   xproc::proc addNums {a b} {expr {$a+$b}}
   addNums 7 9
@@ -189,7 +252,7 @@ test runTests-1 {Provide correct test output} -body {
               invoked from within
           "uplevel 1 [list apply $lambda $commandName]"
 
-Total: 14,  Passed: 10,  Failed: 4
+Total: 15,  Passed: 11,  Failed: 4
 } -result 4
 
 
@@ -244,8 +307,10 @@ test runTests-2 {Provide extra test output with -verbose} -body {
 --- PASS  ::aTestNamespace::cmdB
 === RUN   ::aTestNamespace::cmdC
 --- PASS  ::aTestNamespace::cmdC
+=== RUN   ::dTestNamespace::cmdA
+--- PASS  ::dTestNamespace::cmdA
 
-Total: 14,  Passed: 10,  Failed: 4
+Total: 15,  Passed: 11,  Failed: 4
 } -result 4
 
 
@@ -274,7 +339,8 @@ This could work as follows:
 ::raiseErrorCmd {Raises an error because $c doesn't exist} \
 ::aTestNamespace::cmdA {this is a description of cmdA} \
 ::aTestNamespace::cmdB {this is a description of cmdB} \
-::aTestNamespace::cmdC {this is a description of cmdC}]
+::aTestNamespace::cmdC {this is a description of cmdC} \
+::cTestNamespace::cmdA {this is a description of cmdA}]
 
 
 cleanupTests
