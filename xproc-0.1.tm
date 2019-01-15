@@ -55,18 +55,9 @@ proc xproc::remove {type args} {
   }
   set filterLambda {{matchPatterns d} {
     dict filter $d script {commandName -} {
-      set keep true
-      set ns [namespace qualifier $commandName]
-      if {$ns eq ""} {set ns "::"}
-      foreach nsPattern $matchPatterns {
-        if {[string match $nsPattern $ns]} {
-          set keep false
-          break
-        }
-      }
-      set keep
+      expr {![MatchCommandName $matchPatterns $commandName]}
     }
-  }}
+  } xproc}
   switch $type {
     tests {set tests [apply $filterLambda $options(match) $tests]}
     descriptions {
