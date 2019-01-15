@@ -23,6 +23,9 @@ proc xproc::proc {commandName commandArgs commandBody args} {
       default break
     }
   }
+  if {[llength $args] > 0} {
+    return -code error "invalid number of arguments"
+  }
 
   uplevel 1 [list proc $commandName $commandArgs $commandBody]
 
@@ -39,41 +42,41 @@ proc xproc::proc {commandName commandArgs commandBody args} {
 proc xproc::remove {type args} {
   variable tests
   variable descriptions
+  array set options {match {"*"}}
+  while {[llength $args]} {
+    switch -glob -- [lindex $args 0] {
+      -match {set args [lassign $args - options(match)]}
+      -*      {return -code error "unknown option [lindex $args 0]"}
+      default break
+    }
+  }
+  if {[llength $args] > 0} {
+    return -code error "invalid number of arguments"
+  }
+  set filterLambda {{matchPatterns d} {
+    dict filter $d script {commandName -} {
+      set keep true
+      set ns [namespace qualifier $commandName]
+      if {$ns eq ""} {set ns "::"}
+      foreach nsPattern $matchPatterns {
+        if {[string match $nsPattern $ns]} {
+          set keep false
+          break
+        }
+      }
+      set keep
+    }
+  }}
   switch $type {
-    tests {
-      set tests [
-        dict filter $tests script {commandName test} {
-          set keep true
-          set ns [namespace qualifier $commandName]
-          if {$ns eq ""} {set ns "::"}
-          foreach nsPattern $args {
-            if {[string match $nsPattern $ns]} {
-              set keep false
-              break
-            }
-          }
-          set keep
-        }
-      ]
-    }
+    tests {set tests [apply $filterLambda $options(match) $tests]}
     descriptions {
-      set descriptions [
-        dict filter $descriptions script {commandName description} {
-          set keep true
-          set ns [namespace qualifier $commandName]
-          if {$ns eq ""} {set ns "::"}
-          foreach nsPattern $args {
-            if {[string match $nsPattern $ns]} {
-              set keep false
-            }
-          }
-          set keep
-        }
-      ]
+      set descriptions [apply $filterLambda $options(match) $descriptions]
     }
-    default {
-      return -code error "invalid type: $type"
+    all {
+      set tests [apply $filterLambda $options(match) $tests]
+      set descriptions [apply $filterLambda $options(match) $descriptions]
     }
+    default {return -code error "invalid type: $type"}
   }
 }
 

@@ -208,7 +208,34 @@ namespace eval bTestNamespace {
       xproc::testFail $t "got: $got, want: $want"
     }
   } bTestNamespace}
+}
 
+#
+# This shouldn't appear in tests or descriptions because is removed in both.
+# This will be removed using remove all -match ...
+namespace eval bbTestNamespace {
+  xproc::proc cmdA {} {
+    return "defined inside eval bbTestNamespace"
+  } -description {
+    this is a description of cmdA
+  } -test {{t} {
+    set got [cmdA]
+    set want "defined inside eval bbTestNamespace"
+    if {$got ne $want} {
+      xproc::testFail $t "got: $got, want: $want"
+    }
+  } bbTestNamespace}
+  xproc::proc cmdB {} {
+    return "defined inside eval bbTestNamespace"
+  } -description {
+    this is a description of cmdB
+  } -test {{t} {
+    set got [cmdB]
+    set want "defined inside eval bbTestNamespace"
+    if {$got ne $want} {
+      xproc::testFail $t "got: $got, want: $want"
+    }
+  } bbTestNamespace}
 }
 
 
@@ -244,8 +271,9 @@ namespace eval dTestNamespace {
 }
 
 # Remove relevant namespaces as described above
-xproc::remove tests ::bTestName* ::cTestName*
-xproc::remove descriptions ::bTestName* ::dTestName*
+xproc::remove tests -match {::bTestName* ::cTestName*}
+xproc::remove descriptions -match {::bTestName* ::dTestName*}
+xproc::remove all -match {::bbTestName*}
 
 
 test proc-1 {Allows normal definition of a proc} -body {
