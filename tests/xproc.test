@@ -87,6 +87,36 @@ xproc::test addNums5 {{t} {
 }}
 
 
+xproc::proc addNums6 {a b} {
+  expr {$a+$b}
+} -description {
+  Add two numbers together and return the result
+
+  This could work as follows:
+    addNums6 7 9      ; # Would return 16
+} -test {{t} {
+  set cases {
+    {input {7 9} want 16}
+    {input {2 3} want 17}
+    {input {2 4} want 4}
+    {input {2 4} want 9}
+  }
+  set i 0
+  foreach c $cases {
+    if {$i == 3} {
+      error "Time to fail - i: $i"
+    }
+    dict with c {
+      set got [addNums2 {*}$input]
+      if {$got != $want} {
+        xproc::testError $t "($i) got: $got, want: $want"
+      }
+    }
+    incr i
+  }
+}}
+
+
 xproc::proc subNums {a b} {
   expr {$a-$b}
 } -description {
@@ -234,6 +264,31 @@ test runTests-1 {Provide correct test output} -body {
 ---       (2) got: 6, want: 7
 --- FAIL  ::addNums5
 ---       (1) got: 5, want: 18
+--- FAIL  ::addNums6
+---       (1) got: 5, want: 17
+--- FAIL  ::addNums6
+---       (2) got: 6, want: 4
+--- FAIL  ::addNums6
+---       Time to fail - i: 3
+              while executing
+          "error "Time to fail - i: $i""
+              (lambda term "{t} {
+            set cases {
+              {input {7 9} want 16}
+              {input {2 ..." line 11)
+              invoked from within
+          "apply {{t} {
+            set cases {
+              {input {7 9} want 16}
+              {input {2 3} want 17}
+              {input {2 4} want 4}
+              {input {2 4} want 9}
+            }
+            set i 0
+            forea..."
+              ("uplevel" body line 1)
+              invoked from within
+          "uplevel 1 [list apply $lambda $commandName]"
 --- FAIL  ::raiseErrorCmd
 ---       can't read "c": no such variable
               while executing
@@ -281,6 +336,31 @@ test runTests-2 {Provide extra test output with -verbose} -body {
 === RUN   ::addNums5
 --- FAIL  ::addNums5
 ---       (1) got: 5, want: 18
+--- FAIL  ::addNums6
+---       (1) got: 5, want: 17
+--- FAIL  ::addNums6
+---       (2) got: 6, want: 4
+--- FAIL  ::addNums6
+---       Time to fail - i: 3
+              while executing
+          "error "Time to fail - i: $i""
+              (lambda term "{t} {
+            set cases {
+              {input {7 9} want 16}
+              {input {2 ..." line 11)
+              invoked from within
+          "apply {{t} {
+            set cases {
+              {input {7 9} want 16}
+              {input {2 3} want 17}
+              {input {2 4} want 4}
+              {input {2 4} want 9}
+            }
+            set i 0
+            forea..."
+              ("uplevel" body line 1)
+              invoked from within
+          "uplevel 1 [list apply $lambda $commandName]"
 === RUN   ::subNums
 --- PASS  ::subNums
 === RUN   ::raiseErrorCmd
@@ -332,6 +412,10 @@ This could work as follows:
 
 This could work as follows:
   addNums5 7 9      ; # Would return 16} \
+::addNums6 {Add two numbers together and return the result
+
+This could work as follows:
+  addNums6 7 9      ; # Would return 16} \
 ::subNums {Subtract one number from another and return the result
 
 This could work as follows:

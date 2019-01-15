@@ -154,11 +154,6 @@ proc xproc::testError {commandName msg} {
 }
 
 
-proc xproc::testFatal {commandName msg} {
-  return -code error $msg
-}
-
-
 # TODO: Add a way of testing against returnCodes and matchType, etc
 proc xproc::testCases {testState cases lambdaExpr} {
   set i 0
