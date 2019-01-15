@@ -19,10 +19,9 @@ proc xproc::proc {commandName commandArgs commandBody args} {
       -desc* {set args [lassign $args - options(description)]}
       -test {set args [lassign $args - options(test)]}
       --      {set args [lrange $args 1 end] ; break}
-      -*      {error "unknown option [lindex $args 0]"}
+      -*      {return -code error "unknown option [lindex $args 0]"}
       default break
     }
-    # TODO: Check error above
   }
 
   uplevel 1 [list proc $commandName $commandArgs $commandBody]
