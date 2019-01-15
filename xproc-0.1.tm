@@ -153,7 +153,6 @@ proc xproc::testFail {commandName msg} {
 }
 
 
-# TODO: Add a way of testing against returnCodes and matchType, etc
 proc xproc::testCases {testState cases lambdaExpr} {
   set i 0
   foreach case $cases {
