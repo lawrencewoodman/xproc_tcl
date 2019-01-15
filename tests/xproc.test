@@ -307,7 +307,7 @@ test runTests-1 {Provide correct test output} -body {
               invoked from within
           "uplevel 1 [list apply $lambda $commandName]"
 
-Total: 16,  Passed: 11,  Failed: 5
+Total: 17,  Passed: 12,  Skipped: 0,  Failed: 5
 }] -result 5
 
 
@@ -315,6 +315,8 @@ test runTests-2 {Provide extra test output with -verbose} -body {
   xproc::runTests -verbose
 } -output [string map [list !openBrace! "\{"] {=== RUN   ::xproc::MakeSummary
 --- PASS  ::xproc::MakeSummary
+=== RUN   ::xproc::MatchTest
+--- PASS  ::xproc::MatchTest
 === RUN   ::xproc::IndentEachLine
 --- PASS  ::xproc::IndentEachLine
 === RUN   ::xproc::CountIndent
@@ -391,8 +393,30 @@ test runTests-2 {Provide extra test output with -verbose} -body {
 === RUN   ::dTestNamespace::cmdA
 --- PASS  ::dTestNamespace::cmdA
 
-Total: 16,  Passed: 11,  Failed: 5
+Total: 17,  Passed: 12,  Skipped: 0,  Failed: 5
 }] -result 5
+
+
+test runTests-3 {Just test certain tests using -match} -body {
+  xproc::runTests -verbose -match {*::M* ::ad*ums4 *2 ::aTest*}
+} -output [string map [list !openBrace! "\{"] {=== RUN   ::xproc::MakeSummary
+--- PASS  ::xproc::MakeSummary
+=== RUN   ::xproc::MatchTest
+--- PASS  ::xproc::MatchTest
+=== RUN   ::addNums2
+--- FAIL  ::addNums2
+---       (1) got: 5, want: 18
+=== RUN   ::addNums4
+--- PASS  ::addNums4
+=== RUN   ::aTestNamespace::cmdA
+--- PASS  ::aTestNamespace::cmdA
+=== RUN   ::aTestNamespace::cmdB
+--- PASS  ::aTestNamespace::cmdB
+=== RUN   ::aTestNamespace::cmdC
+--- PASS  ::aTestNamespace::cmdC
+
+Total: 17,  Passed: 6,  Skipped: 10,  Failed: 1
+}] -result 1
 
 
 test descriptions-1 {Return descriptions} -body {

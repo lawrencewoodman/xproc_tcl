@@ -84,7 +84,7 @@ proc xproc::test {commandName lambda} {
   set fullCommandName [
     uplevel 1 [list namespace which -command $commandName]
   ]
-  dict set tests $fullCommandName [dict create lambda $lambda fail false]
+  dict set tests $fullCommandName [dict create lambda $lambda]
 }
 
 
@@ -97,14 +97,14 @@ proc xproc::describe {commandName description} {
 }
 
 
-# TODO: Add a -match switch
 # TODO: Add -silent switch
 proc xproc::runTests {args} {
   variable tests
 
-  array set options {verbose 0}
+  array set options {verbose 0 match {"*"}}
   while {[llength $args]} {
     switch -glob -- [lindex $args 0] {
+      -match {set args [lassign $args - options(match)]}
       -verbose {set options(verbose) 1 ; set args [lrange $args 1 end]}
       --      {set args [lrange $args 1 end] ; break}
       -*      {error "unknown option [lindex $args 0]"}
@@ -117,6 +117,11 @@ proc xproc::runTests {args} {
 
   set numFail 0
   dict for {commandName test} $tests {
+    ResetTest $commandName
+    if {![MatchTest $options(match) $commandName]} {
+      dict set tests $commandName skip true
+      continue
+    }
     if {$options(verbose)} {
       puts "=== RUN   $commandName"
     }
@@ -140,7 +145,7 @@ proc xproc::runTests {args} {
   }
   set summary [MakeSummary $tests]
   dict with summary {
-    puts "\nTotal: $total,  Passed: $passed,  Failed: $failed"
+    puts "\nTotal: $total,  Passed: $passed,  Skipped: $skipped,  Failed: $failed"
   }
   return $numFail
 }
@@ -179,29 +184,61 @@ proc xproc::descriptions {} {
 xproc::proc xproc::MakeSummary {tests} {
   set total [llength [dict keys $tests]]
   set failed 0
+  set skipped 0
   dict for {commandName test} $tests {
     if {[dict get $test fail]} {incr failed}
+    if {[dict get $test skip]} {incr skipped}
   }
-  set passed [expr {$total-$failed}]
-  return [dict create total $total passed $passed failed $failed]
+  set passed [expr {($total-$failed)-$skipped}]
+  return [dict create \
+               total $total passed $passed skipped $skipped failed $failed]
 } -test {{t} {
   set cases [list \
     [dict create input {} \
-     want [dict create total 0 passed 0 failed 0]] \
-    [dict create input {name-1 {fail true}} \
-     want [dict create total 1 passed 0 failed 1]] \
-    [dict create input {name-1 {fail false}} \
-     want [dict create total 1 passed 1 failed 0]] \
-    [dict create input {name-1 {fail false} name-2 {fail false}} \
-     want [dict create total 2 passed 2 failed 0]] \
-    [dict create input {name-1 {fail true} name-2 {fail false}} \
-     want [dict create total 2 passed 1 failed 1]] \
-    [dict create input {name-1 {fail false} name-2 {fail true}} \
-     want [dict create total 2 passed 1 failed 1]] \
-    [dict create input {name-1 {fail true} name-2 {fail true}} \
-     want [dict create total 2 passed 0 failed 2]] \
+     want [dict create total 0 passed 0 skipped 0 failed 0]] \
+    [dict create input {name-1 {skip false fail true}} \
+     want [dict create total 1 passed 0 skipped 0 failed 1]] \
+    [dict create input {name-1 {skip false fail false}} \
+     want [dict create total 1 passed 1 skipped 0 failed 0]] \
+    [dict create input {name-1 {skip false fail false} \
+                        name-2 {skip false fail false}} \
+     want [dict create total 2 passed 2 skipped 0 failed 0]] \
+    [dict create input {name-1 {skip false fail true} \
+                        name-2 {skip false fail false}} \
+     want [dict create total 2 passed 1 skipped 0 failed 1]] \
+    [dict create input {name-1 {skip false fail false} \
+                        name-2 {skip false fail true}} \
+     want [dict create total 2 passed 1 skipped 0 failed 1]] \
+    [dict create input {name-1 {skip false fail true} \
+                        name-2 {skip false fail true}} \
+     want [dict create total 2 passed 0 skipped 0 failed 2]] \
+    [dict create input {name-1 {skip true fail false} \
+                        name-2 {skip false fail true}} \
+     want [dict create total 2 passed 0 skipped 1 failed 1]] \
+    [dict create input {name-1 {skip true fail false} \
+                        name-2 {skip true fail false}} \
+     want [dict create total 2 passed 0 skipped 2 failed 0]] \
   ]
   xproc::testCases $t $cases {{input} {xproc::MakeSummary $input}}
+}}
+
+
+# Does commandName match any of the patterns
+xproc::proc xproc::MatchTest {matchPatterns commandName} {
+  foreach matchPattern $matchPatterns {
+    if {[string match $matchPattern $commandName]} {return true}
+  }
+  return false
+} -test {{t} {
+  set cases {
+    {input {{"*"} someName} want true}
+    {input {{"*bob*" "*"} someName} want true}
+    {input {{"*bob*" "*fred*"} someName} want false}
+    {input {{"*bob*" "*fred*"} somebobName} want true}
+    {input {{"*bob*" "*fred*"} somefredName} want true}
+    {input {{"*bob*" "*fred*"} someharroldName} want false}
+  }
+  xproc::testCases $t $cases {{input} {xproc::MatchTest {*}$input}}
 }}
 
 
@@ -333,6 +370,13 @@ xproc::proc xproc::StripIndent {lines numSpaces} {
     incr i
   }
 }}
+
+
+proc xproc::ResetTest {commandName} {
+  variable tests
+  dict set tests $commandName skip false
+  dict set tests $commandName fail false
+}
 
 
 xproc::proc xproc::TidyDescription {description} {
