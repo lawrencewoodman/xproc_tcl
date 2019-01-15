@@ -12,6 +12,13 @@ namespace eval xproc {
 }
 
 
+###################################################################
+# Descriptions of exported procedures are at the end of this file
+# because certain functions need to be defined before xproc can
+# be used to add the descriptions.
+###################################################################
+
+
 proc xproc::proc {commandName commandArgs commandBody args} {
   array set options {}
   while {[llength $args]} {
@@ -438,3 +445,95 @@ line to see if everything is aligned properly
 
   xproc::testCases $t $cases {{input} {xproc::TidyDescription $input}}
 }}
+
+
+
+
+#########################################
+# Descriptions for exported procedures
+#########################################
+
+xproc::describe xproc::proc {
+  Create a Tcl procedure, like ::proc, but extended with extra switches
+
+  xproc::proc name args body ?-description description? ?-test lambda?
+
+  This extendeds ::proc by adding the following switches:
+    -description description   Records the given description
+    -test lambda               Records the given lambda to be used
+                               to test this procedure.  The lambda has
+                               one parameter which is the testState.
+}
+
+xproc::describe xproc::remove {
+  Remove xproc functionality from procedures
+
+  xproc::remove type ?-match patternList?
+
+  The type can be one of:
+    tests           Remove tests
+    descriptions    Remove descriptions
+    all             Remove all xproc functionality
+
+  There is one switch:
+    -match patternList    Matches procedureNames against patterns in
+                          patternList, the default is {"*"}
+}
+
+xproc::describe xproc::test {
+  Record the given lambda to test a procedure
+
+  xproc::test procedureName lambda
+
+  The lambda has one parameter which is the testState
+}
+
+xproc::describe xproc::describe {
+  Record the given description for a procedure
+
+  xproc::describe procedureName description
+}
+
+xproc::describe xproc::runTests {
+  Run the tests recorded using xproc
+
+  xproc::runTests ?-verbose? ?-match patternList?
+
+  The switches do the following:
+    -verbose              Outputs tests that pass not just those that fail
+    -match patternList    Matches procedureNames against patterns in
+                          patternList, the default is {"*"}
+}
+
+xproc::describe xproc::testFail {
+  Output a FAIL message and record that test has failed
+
+  xproc::testFail procedureName msg
+}
+
+
+xproc::describe xproc::testCases {
+  Test the supplied test cases within a test lambda
+
+  xproc::testCases testState cases lambda
+
+  The testState is passed through a test lambda defined with xproc::test
+  or using -test with xproc::proc.
+
+  The cases are a list of dictionaries that describe each test case with
+  the following keys:
+    input       The value to pass to the lambda
+    want        The value to test against the result of the lambda
+
+  The lambda has one parameter which is the input for the test case.
+}
+
+xproc::describe xproc::descriptions {
+  Return the descriptions recorded using xproc
+
+  xproc::descriptions ?-match patternList?
+
+  There is one switch:
+    -match patternList    Matches procedureNames against patterns in
+                          patternList, the default is {"*"}
+}
