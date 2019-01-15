@@ -315,8 +315,8 @@ test runTests-2 {Provide extra test output with -verbose} -body {
   xproc::runTests -verbose
 } -output [string map [list !openBrace! "\{"] {=== RUN   ::xproc::MakeSummary
 --- PASS  ::xproc::MakeSummary
-=== RUN   ::xproc::MatchTest
---- PASS  ::xproc::MatchTest
+=== RUN   ::xproc::MatchCommandName
+--- PASS  ::xproc::MatchCommandName
 === RUN   ::xproc::IndentEachLine
 --- PASS  ::xproc::IndentEachLine
 === RUN   ::xproc::CountIndent
@@ -401,8 +401,8 @@ test runTests-3 {Just test certain tests using -match} -body {
   xproc::runTests -verbose -match {*::M* ::ad*ums4 *2 ::aTest*}
 } -output [string map [list !openBrace! "\{"] {=== RUN   ::xproc::MakeSummary
 --- PASS  ::xproc::MakeSummary
-=== RUN   ::xproc::MatchTest
---- PASS  ::xproc::MatchTest
+=== RUN   ::xproc::MatchCommandName
+--- PASS  ::xproc::MatchCommandName
 === RUN   ::addNums2
 --- FAIL  ::addNums2
 ---       (1) got: 5, want: 18
@@ -449,6 +449,20 @@ This could work as follows:
 ::aTestNamespace::cmdA {this is a description of cmdA} \
 ::aTestNamespace::cmdB {this is a description of cmdB} \
 ::aTestNamespace::cmdC {this is a description of cmdC} \
+::cTestNamespace::cmdA {this is a description of cmdA}]
+
+
+test descriptions-2 {Return specified descriptions using -match} -body {
+  xproc::descriptions -match {addNums5 ::addNums6 *ubN* *cmdA*}
+} -result [dict create ::addNums6 {Add two numbers together and return the result
+
+This could work as follows:
+  addNums6 7 9      ; # Would return 16} \
+::subNums {Subtract one number from another and return the result
+
+This could work as follows:
+  subNums 7 9      ; # Would return -2} \
+::aTestNamespace::cmdA {this is a description of cmdA} \
 ::cTestNamespace::cmdA {this is a description of cmdA}]
 
 

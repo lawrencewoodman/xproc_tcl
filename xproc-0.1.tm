@@ -105,8 +105,7 @@ proc xproc::runTests {args} {
     switch -glob -- [lindex $args 0] {
       -match {set args [lassign $args - options(match)]}
       -verbose {set options(verbose) 1 ; set args [lrange $args 1 end]}
-      --      {set args [lrange $args 1 end] ; break}
-      -*      {error "unknown option [lindex $args 0]"}
+      -*      {return -code error "unknown option [lindex $args 0]"}
       default break
     }
   }
@@ -117,7 +116,7 @@ proc xproc::runTests {args} {
   set numFail 0
   dict for {commandName test} $tests {
     ResetTest $commandName
-    if {![MatchTest $options(match) $commandName]} {
+    if {![MatchCommandName $options(match) $commandName]} {
       dict set tests $commandName skip true
       continue
     }
@@ -173,10 +172,23 @@ proc xproc::testCases {testState cases lambdaExpr} {
 }
 
 
-# TODO: Add a -match switch
-proc xproc::descriptions {} {
+xproc::proc xproc::descriptions {args} {
   variable descriptions
-  return $descriptions
+  array set options {match {"*"}}
+  while {[llength $args]} {
+    switch -glob -- [lindex $args 0] {
+      -match {set args [lassign $args - options(match)]}
+      -*      {return -code error "unknown option [lindex $args 0]"}
+      default break
+    }
+  }
+  if {[llength $args] > 0} {
+    return -code error "invalid number of arguments"
+  }
+
+  dict filter $descriptions script {commandName description} {
+    MatchCommandName $options(match) $commandName
+  }
 }
 
 
@@ -223,7 +235,7 @@ xproc::proc xproc::MakeSummary {tests} {
 
 
 # Does commandName match any of the patterns
-xproc::proc xproc::MatchTest {matchPatterns commandName} {
+xproc::proc xproc::MatchCommandName {matchPatterns commandName} {
   foreach matchPattern $matchPatterns {
     if {[string match $matchPattern $commandName]} {return true}
   }
@@ -237,7 +249,7 @@ xproc::proc xproc::MatchTest {matchPatterns commandName} {
     {input {{"*bob*" "*fred*"} somefredName} want true}
     {input {{"*bob*" "*fred*"} someharroldName} want false}
   }
-  xproc::testCases $t $cases {{input} {xproc::MatchTest {*}$input}}
+  xproc::testCases $t $cases {{input} {xproc::MatchCommandName {*}$input}}
 }}
 
 
