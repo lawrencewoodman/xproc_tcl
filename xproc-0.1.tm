@@ -90,7 +90,6 @@ proc xproc::describe {commandName description} {
 }
 
 
-# TODO: Add -silent switch
 proc xproc::runTests {args} {
   variable tests
 
@@ -116,6 +115,7 @@ proc xproc::runTests {args} {
     }
     if {$options(verbose)} {
       puts "=== RUN   $commandName"
+      set timeStart [clock microseconds]
     }
     try {
       set lambda [dict get $test lambda]
@@ -130,9 +130,11 @@ proc xproc::runTests {args} {
       incr numFail
     } else {
       if {$options(verbose)} {
-        puts "--- PASS  $commandName"
+        set secondsElapsed [
+          expr {([clock microseconds] - $timeStart)/1000000.}
+        ]
+        puts [format {--- PASS  %s (%0.2fs)} $commandName $secondsElapsed]
       }
-      # TODO: time test
     }
   }
   set summary [MakeSummary $tests]
