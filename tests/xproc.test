@@ -26,7 +26,7 @@ xproc::proc addNums2 {a b} {
     dict with c {
       set got [addNums2 {*}$input]
       if {$got != $want} {
-        xproc::testError $t "($i) got: $got, want: $want"
+        xproc::testFail $t "($i) got: $got, want: $want"
       }
     }
     incr i
@@ -109,7 +109,7 @@ xproc::proc addNums6 {a b} {
     dict with c {
       set got [addNums2 {*}$input]
       if {$got != $want} {
-        xproc::testError $t "($i) got: $got, want: $want"
+        xproc::testFail $t "($i) got: $got, want: $want"
       }
     }
     incr i
@@ -153,7 +153,7 @@ namespace eval aTestNamespace {
     set got [cmdA]
     set want "defined inside eval aTestNamespace"
     if {$got ne $want} {
-      xproc::testError $t "got: $got, want: $want"
+      xproc::testFail $t "got: $got, want: $want"
     }
   } aTestNamespace}
 }
@@ -166,7 +166,7 @@ xproc::proc aTestNamespace::cmdB {} {
   set got [aTestNamespace::cmdB]
   set want "defined outside eval aTestNamespace"
   if {$got ne $want} {
-    xproc::testError $t "got: $got, want: $want"
+    xproc::testFail $t "got: $got, want: $want"
   }
 }}
 
@@ -179,7 +179,7 @@ xproc::proc ::aTestNamespace::cmdC {} {
   set got [aTestNamespace::cmdC]
   set want "defined outside eval aTestNamespace"
   if {$got ne $want} {
-    xproc::testError $t "got: $got, want: $want"
+    xproc::testFail $t "got: $got, want: $want"
   }
 }}
 
@@ -194,7 +194,7 @@ namespace eval bTestNamespace {
     set got [cmdA]
     set want "defined inside eval bTestNamespace"
     if {$got ne $want} {
-      xproc::testError $t "got: $got, want: $want"
+      xproc::testFail $t "got: $got, want: $want"
     }
   } bTestNamespace}
   xproc::proc cmdB {} {
@@ -205,7 +205,7 @@ namespace eval bTestNamespace {
     set got [cmdB]
     set want "defined inside eval bTestNamespace"
     if {$got ne $want} {
-      xproc::testError $t "got: $got, want: $want"
+      xproc::testFail $t "got: $got, want: $want"
     }
   } bTestNamespace}
 
@@ -222,7 +222,7 @@ namespace eval cTestNamespace {
     set got [cmdA]
     set want "defined inside eval cTestNamespace"
     if {$got ne $want} {
-      xproc::testError $t "got: $got, want: $want"
+      xproc::testFail $t "got: $got, want: $want"
     }
   } cTestNamespace}
 }
@@ -238,7 +238,7 @@ namespace eval dTestNamespace {
     set got [cmdA]
     set want "defined inside eval dTestNamespace"
     if {$got ne $want} {
-      xproc::testError $t "got: $got, want: $want"
+      xproc::testFail $t "got: $got, want: $want"
     }
   } dTestNamespace}
 }
@@ -256,7 +256,7 @@ test proc-1 {Allows normal definition of a proc} -body {
 
 test runTests-1 {Provide correct test output} -body {
   xproc::runTests
-} -output {--- FAIL  ::addNums2
+} -output [string map [list !openBrace! "\{"] {--- FAIL  ::addNums2
 ---       (1) got: 5, want: 18
 --- FAIL  ::addNums3
 ---       (0) got: 16, want: 15
@@ -272,12 +272,12 @@ test runTests-1 {Provide correct test output} -body {
 ---       Time to fail - i: 3
               while executing
           "error "Time to fail - i: $i""
-              (lambda term "{t} {
-            set cases {
+              (lambda term "{t} !openBrace!
+            set cases !openBrace!
               {input {7 9} want 16}
-              {input {2 ..." line 11)
+              !openBrace!input !openBrace!2 ..." line 11)
               invoked from within
-          "apply {{t} {
+          "apply !openBrace!{t} !openBrace!
             set cases {
               {input {7 9} want 16}
               {input {2 3} want 17}
@@ -307,13 +307,13 @@ test runTests-1 {Provide correct test output} -body {
               invoked from within
           "uplevel 1 [list apply $lambda $commandName]"
 
-Total: 15,  Passed: 11,  Failed: 4
-} -result 4
+Total: 16,  Passed: 11,  Failed: 5
+}] -result 5
 
 
 test runTests-2 {Provide extra test output with -verbose} -body {
   xproc::runTests -verbose
-} -output {=== RUN   ::xproc::MakeSummary
+} -output [string map [list !openBrace! "\{"] {=== RUN   ::xproc::MakeSummary
 --- PASS  ::xproc::MakeSummary
 === RUN   ::xproc::IndentEachLine
 --- PASS  ::xproc::IndentEachLine
@@ -336,6 +336,7 @@ test runTests-2 {Provide extra test output with -verbose} -body {
 === RUN   ::addNums5
 --- FAIL  ::addNums5
 ---       (1) got: 5, want: 18
+=== RUN   ::addNums6
 --- FAIL  ::addNums6
 ---       (1) got: 5, want: 17
 --- FAIL  ::addNums6
@@ -344,12 +345,12 @@ test runTests-2 {Provide extra test output with -verbose} -body {
 ---       Time to fail - i: 3
               while executing
           "error "Time to fail - i: $i""
-              (lambda term "{t} {
-            set cases {
+              (lambda term "{t} !openBrace!
+            set cases !openBrace!
               {input {7 9} want 16}
-              {input {2 ..." line 11)
+              !openBrace!input !openBrace!2 ..." line 11)
               invoked from within
-          "apply {{t} {
+          "apply !openBrace!{t} !openBrace!
             set cases {
               {input {7 9} want 16}
               {input {2 3} want 17}
@@ -390,8 +391,8 @@ test runTests-2 {Provide extra test output with -verbose} -body {
 === RUN   ::dTestNamespace::cmdA
 --- PASS  ::dTestNamespace::cmdA
 
-Total: 15,  Passed: 11,  Failed: 4
-} -result 4
+Total: 16,  Passed: 11,  Failed: 5
+}] -result 5
 
 
 test descriptions-1 {Return descriptions} -body {

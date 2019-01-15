@@ -146,7 +146,7 @@ proc xproc::runTests {args} {
 }
 
 
-proc xproc::testError {commandName msg} {
+proc xproc::testFail {commandName msg} {
   variable tests
   dict set tests $commandName fail true
   puts "--- FAIL  $commandName"
@@ -161,7 +161,7 @@ proc xproc::testCases {testState cases lambdaExpr} {
     dict with case {
       set got [uplevel 1 [list apply $lambdaExpr $input]]
       if {$got ne $want} {
-        xproc::testError $testState "($i) got: $got, want: $want"
+        xproc::testFail $testState "($i) got: $got, want: $want"
       }
     }
     incr i
@@ -233,7 +233,7 @@ and some more here
            and a little less indented}
   set got [xproc::IndentEachLine $text 10 1]
   if {$got ne $want} {
-    xproc::testError $t "got: $got, want: $want"
+    xproc::testFail $t "got: $got, want: $want"
   }
 }}
 
@@ -320,11 +320,11 @@ xproc::proc xproc::StripIndent {lines numSpaces} {
     dict with c {
       set got [xproc::StripIndent {*}$input]
       if {[llength $got] != [llength $want]} {
-        xproc::testError $t "($i) got: $got, want: $want"
+        xproc::testFail $t "($i) got: $got, want: $want"
       } else {
         foreach g $got w $want {
           if {$g ne $w} {
-            xproc::testError $t "($i) got: $got, want: $want"
+            xproc::testFail $t "($i) got: $got, want: $want"
             break
           }
         }
