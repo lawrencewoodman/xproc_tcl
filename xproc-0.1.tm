@@ -180,7 +180,6 @@ proc xproc::testFail {testState msg} {
 proc xproc::testCases {testState cases lambdaExpr} {
   set i 0
   foreach case $cases {
-    set result [dict get $case result]
     set returnCodes {ok return}
     if {[dict exists $case returnCodes]} {
       set returnCodes [dict get $case returnCodes]
@@ -188,12 +187,18 @@ proc xproc::testCases {testState cases lambdaExpr} {
     set returnCodes [lmap code $returnCodes {ReturnCodeToValue $code}]
     try {
       set got [uplevel 1 [list apply $lambdaExpr $case]]
-      if {$got ne $result} {
-        xproc::testFail $testState "($i) got: $got, want: $result"
+      if {[dict exists $case result]} {
+        set result [dict get $case result]
+        if {$got ne $result} {
+          xproc::testFail $testState "($i) got: $got, want: $result"
+        }
       }
     } on error {got returnOptions} {
-      if {$got != $result} {
-        xproc::testFail $testState "($i) got: $got, want: $result"
+      if {[dict exists $case result]} {
+        set result [dict get $case result]
+        if {$got ne $result} {
+          xproc::testFail $testState "($i) got: $got, want: $result"
+        }
       }
       set returnCode [dict get $returnOptions -code]
       set wantCodeFound false
@@ -535,40 +540,43 @@ xproc::test xproc::proc {{t} {
      returnCodes {error} result "unknown option: -bob"}
     {input {xproc::Dummy-2 {} {} bob}
      returnCodes {error} result "invalid number of arguments"}
+    {input {xproc::Dummy-3 {a b} {
+              expr {$a+$b}
+            } -test {{t} {
+              set got [xproc::Dummy-3 2 3]
+              set want 5
+              if {$got != $want} {
+                xproc::testFail $t "got: $got, want: $want"
+              }
+            }} -description {Add two numbers together}}
+     passed 1 failed 0 minTotal 5 maxTotal 50}
+
   }
   xproc::testCases $t $cases {{case} {
-    dict with case {xproc::proc {*}$input}
+    try {
+      dict with case {
+        xproc::proc {*}$input
+        set gotSummary [xproc::runTests -match {::xproc::Dummy-*} -verbose 0]
+        set wantDescriptions [
+          dict create ::xproc::Dummy-3 {Add two numbers together}
+        ]
+        dict with gotSummary {
+          if {$passed != $passed || $failed != $failed ||
+              $total <= $minTotal || $total >= $maxTotal} {
+            xproc::testFail $t "summary incorrect - got: $gotSummary"
+          }
+        }
+        set gotDescriptions [xproc::descriptions -match {::xproc::Dummy-*}]
+        if {$gotDescriptions ne $wantDescriptions} {
+          xproc::testFail $t \
+              "descriptions - got: $gotDescriptions, want: $wantDescriptions"
+        }
+      }
+    } finally {
+      xproc::remove all -match {::xproc::Dummy-*}
+      catch {rename xproc::[lindex $input 0] ""}
+    }
   }}
-
-  try {
-    # Check -test and -description
-    xproc::proc xproc::Dummy-3 {a b} {
-      expr {$a+$b}
-    } -test {{t} {
-      set got [xproc::Dummy-3 2 3]
-      set want 5
-      if {$got != $want} {
-        xproc::testFail $t "got: $got, want: $want"
-      }
-    }} -description {Add two numbers together}
-    set gotSummary [xproc::runTests -match {::xproc::Dummy-*} -verbose 0]
-    dict with gotSummary {
-      if {$passed != 1 || $failed != 0 || $total < 5 || $total > 100} {
-        xproc::testFail $t "summary incorrect - got: $gotSummary"
-      }
-    }
-    set gotDescriptions [xproc::descriptions -match {::xproc::Dummy-*}]
-    set wantDescriptions [
-      dict create ::xproc::Dummy-3 {Add two numbers together}
-    ]
-    if {$gotDescriptions ne $wantDescriptions} {
-      xproc::testFail $t \
-          "descriptions - got: $gotDescriptions, want: $wantDescriptions"
-    }
-  } finally {
-    xproc::remove all -match {::xproc::Dummy-*}
-    rename xproc::Dummy-3 ""
-  }
 }}
 
 
