@@ -295,33 +295,60 @@ xproc::proc waitMS {ms} {
   }
 }}
 
+xproc::proc waitMSFail {ms} {
+  after $ms
+} -test {{t} {
+  set timeStart [clock microseconds]
+  waitMSFail 100
+  xproc::testFail $t "here is an error"
+}}
+
 
 test runTests-1 {Ensure timings work} -body {
-  xproc::runTests -verbose -match {*waitMS}
-} -output {=== RUN   ::waitMS
+  xproc::runTests -verbose 2 -match {*waitMS*}
+} -output {=== SKIP   ::xproc::ReturnCodeToValue
+=== SKIP   ::xproc::MakeSummary
+=== SKIP   ::xproc::MatchProcName
+=== SKIP   ::xproc::IndentEachLine
+=== SKIP   ::xproc::CountIndent
+=== SKIP   ::xproc::StripIndent
+=== SKIP   ::xproc::TidyDescription
+=== SKIP   ::xproc::proc
+=== SKIP   ::addNums2
+=== SKIP   ::addNums3
+=== SKIP   ::addNums4
+=== SKIP   ::addNums5
+=== SKIP   ::addNums6
+=== SKIP   ::subNums
+=== SKIP   ::raiseErrorCmd
+=== SKIP   ::aTestNamespace::cmdA
+=== SKIP   ::aTestNamespace::cmdB
+=== SKIP   ::aTestNamespace::cmdC
+=== SKIP   ::dTestNamespace::cmdA
+=== RUN   ::waitMS
 --- PASS  ::waitMS (0.10s)
+=== RUN   ::waitMSFail
+--- FAIL  ::waitMSFail (0.10s)
+          here is an error
 
-Total: 18,  Passed: 1,  Skipped: 17,  Failed: 0
-} -result 0
-xproc::remove all -match {*waitMS}
+Total: 21,  Passed: 1,  Skipped: 19,  Failed: 1
+} -result [dict create total 21 passed 1 skipped 19 failed 1]
+xproc::remove all -match {*waitMS*}
 
 
 test runTests-2 {Provide correct test output} -body {
   xproc::runTests
-} -output [string map [list !openBrace! "\{"] {--- FAIL  ::addNums2
----       (1) got: 5, want: 18
---- FAIL  ::addNums3
----       (0) got: 16, want: 15
---- FAIL  ::addNums3
----       (2) got: 6, want: 7
---- FAIL  ::addNums5
----       (1) got: 5, want: 18
---- FAIL  ::addNums6
----       (1) got: 5, want: 17
---- FAIL  ::addNums6
----       (2) got: 6, want: 4
---- FAIL  ::addNums6
----       Time to fail - i: 3
+} -output [string map [list !openBrace! "\{"] {--- FAIL  ::addNums2 (0.00s)
+          (1) got: 5, want: 18
+--- FAIL  ::addNums3 (0.00s)
+          (0) got: 16, want: 15
+          (2) got: 6, want: 7
+--- FAIL  ::addNums5 (0.00s)
+          (1) got: 5, want: 18
+--- FAIL  ::addNums6 (0.00s)
+          (1) got: 5, want: 17
+          (2) got: 6, want: 4
+          Time to fail - i: 3
               while executing
           "error "Time to fail - i: $i""
               (lambda term "{t} !openBrace!
@@ -341,8 +368,8 @@ test runTests-2 {Provide correct test output} -body {
               ("uplevel" body line 1)
               invoked from within
           "uplevel 1 [list apply $lambda $procName]"
---- FAIL  ::raiseErrorCmd
----       can't read "c": no such variable
+--- FAIL  ::raiseErrorCmd (0.00s)
+          can't read "c": no such variable
               while executing
           "expr {$a-$c}"
               (procedure "raiseErrorCmd" line 2)
@@ -359,13 +386,15 @@ test runTests-2 {Provide correct test output} -body {
               invoked from within
           "uplevel 1 [list apply $lambda $procName]"
 
-Total: 17,  Passed: 12,  Skipped: 0,  Failed: 5
-}] -result 5
+Total: 19,  Passed: 14,  Skipped: 0,  Failed: 5
+}] -result [dict create total 19 passed 14 skipped 0 failed 5]
 
 
-test runTests-3 {Provide extra test output with -verbose} -body {
-  xproc::runTests -verbose
-} -output [string map [list !openBrace! "\{"] {=== RUN   ::xproc::MakeSummary
+test runTests-3 {-verbose 2 should list passing tests} -body {
+  xproc::runTests -verbose 2
+} -output [string map [list !openBrace! "\{"] {=== RUN   ::xproc::ReturnCodeToValue
+--- PASS  ::xproc::ReturnCodeToValue (0.00s)
+=== RUN   ::xproc::MakeSummary
 --- PASS  ::xproc::MakeSummary (0.00s)
 === RUN   ::xproc::MatchProcName
 --- PASS  ::xproc::MatchProcName (0.00s)
@@ -377,26 +406,25 @@ test runTests-3 {Provide extra test output with -verbose} -body {
 --- PASS  ::xproc::StripIndent (0.00s)
 === RUN   ::xproc::TidyDescription
 --- PASS  ::xproc::TidyDescription (0.00s)
+=== RUN   ::xproc::proc
+--- PASS  ::xproc::proc (0.00s)
 === RUN   ::addNums2
---- FAIL  ::addNums2
----       (1) got: 5, want: 18
+--- FAIL  ::addNums2 (0.00s)
+          (1) got: 5, want: 18
 === RUN   ::addNums3
---- FAIL  ::addNums3
----       (0) got: 16, want: 15
---- FAIL  ::addNums3
----       (2) got: 6, want: 7
+--- FAIL  ::addNums3 (0.00s)
+          (0) got: 16, want: 15
+          (2) got: 6, want: 7
 === RUN   ::addNums4
 --- PASS  ::addNums4 (0.00s)
 === RUN   ::addNums5
---- FAIL  ::addNums5
----       (1) got: 5, want: 18
+--- FAIL  ::addNums5 (0.00s)
+          (1) got: 5, want: 18
 === RUN   ::addNums6
---- FAIL  ::addNums6
----       (1) got: 5, want: 17
---- FAIL  ::addNums6
----       (2) got: 6, want: 4
---- FAIL  ::addNums6
----       Time to fail - i: 3
+--- FAIL  ::addNums6 (0.00s)
+          (1) got: 5, want: 17
+          (2) got: 6, want: 4
+          Time to fail - i: 3
               while executing
           "error "Time to fail - i: $i""
               (lambda term "{t} !openBrace!
@@ -419,8 +447,8 @@ test runTests-3 {Provide extra test output with -verbose} -body {
 === RUN   ::subNums
 --- PASS  ::subNums (0.00s)
 === RUN   ::raiseErrorCmd
---- FAIL  ::raiseErrorCmd
----       can't read "c": no such variable
+--- FAIL  ::raiseErrorCmd (0.00s)
+          can't read "c": no such variable
               while executing
           "expr {$a-$c}"
               (procedure "raiseErrorCmd" line 2)
@@ -445,30 +473,47 @@ test runTests-3 {Provide extra test output with -verbose} -body {
 === RUN   ::dTestNamespace::cmdA
 --- PASS  ::dTestNamespace::cmdA (0.00s)
 
-Total: 17,  Passed: 12,  Skipped: 0,  Failed: 5
-}] -result 5
+Total: 19,  Passed: 14,  Skipped: 0,  Failed: 5
+}] -result [dict create total 19 passed 14 skipped 0 failed 5]
 
 
 test runTests-4 {Just test certain tests using -match} -body {
-  xproc::runTests -verbose -match {*::M* ::ad*ums4 *2 ::aTest*}
-} -output [string map [list !openBrace! "\{"] {=== RUN   ::xproc::MakeSummary
+  xproc::runTests -verbose 2 -match {*::M* ::ad*ums4 *2 ::aTest*}
+} -output {=== SKIP   ::xproc::ReturnCodeToValue
+=== RUN   ::xproc::MakeSummary
 --- PASS  ::xproc::MakeSummary (0.00s)
 === RUN   ::xproc::MatchProcName
 --- PASS  ::xproc::MatchProcName (0.00s)
+=== SKIP   ::xproc::IndentEachLine
+=== SKIP   ::xproc::CountIndent
+=== SKIP   ::xproc::StripIndent
+=== SKIP   ::xproc::TidyDescription
+=== SKIP   ::xproc::proc
 === RUN   ::addNums2
---- FAIL  ::addNums2
----       (1) got: 5, want: 18
+--- FAIL  ::addNums2 (0.00s)
+          (1) got: 5, want: 18
+=== SKIP   ::addNums3
 === RUN   ::addNums4
 --- PASS  ::addNums4 (0.00s)
+=== SKIP   ::addNums5
+=== SKIP   ::addNums6
+=== SKIP   ::subNums
+=== SKIP   ::raiseErrorCmd
 === RUN   ::aTestNamespace::cmdA
 --- PASS  ::aTestNamespace::cmdA (0.00s)
 === RUN   ::aTestNamespace::cmdB
 --- PASS  ::aTestNamespace::cmdB (0.00s)
 === RUN   ::aTestNamespace::cmdC
 --- PASS  ::aTestNamespace::cmdC (0.00s)
+=== SKIP   ::dTestNamespace::cmdA
 
-Total: 17,  Passed: 6,  Skipped: 10,  Failed: 1
-}] -result 1
+Total: 19,  Passed: 6,  Skipped: 12,  Failed: 1
+} -result [dict create total 19 passed 6 skipped 12 failed 1]
+
+
+test runTests-5 {-verbose 0 should produce no output to stdout} -body {
+  xproc::runTests -verbose 0
+} -output {} -result [dict create total 19 passed 14 skipped 0 failed 5]
 
 
 test descriptions-1 {Return descriptions} -body {

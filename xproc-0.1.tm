@@ -8,14 +8,15 @@ package require Tcl 8.6
 namespace eval xproc {
   namespace export {[a-z]*}
   variable tests [dict create]
+  variable testFailMessages {}
   variable descriptions [dict create]
 }
 
 
 ###################################################################
-# Descriptions of exported procedures are at the end of this file
-# because certain functions need to be defined before xproc can
-# be used to add the descriptions.
+# Descriptions and tests for exported procedures are at the end
+# of this file because certain functions need to be defined before
+# xproc can be used to add the descriptions.
 ###################################################################
 
 
@@ -99,12 +100,13 @@ proc xproc::describe {procName description} {
 
 proc xproc::runTests {args} {
   variable tests
+  variable testFailMessages
 
-  array set options {verbose 0 match {"*"}}
+  array set options {verbose 1 match {"*"}}
   while {[llength $args]} {
     switch -glob -- [lindex $args 0] {
       -match {set args [lassign $args - options(match)]}
-      -verbose {set options(verbose) 1 ; set args [lrange $args 1 end]}
+      -verbose {set args [lassign $args - options(verbose)]}
       -*      {return -code error "unknown option [lindex $args 0]"}
       default break
     }
@@ -113,60 +115,93 @@ proc xproc::runTests {args} {
     return -code error "invalid number of arguments"
   }
 
-  set numFail 0
-  dict for {procName test} $tests {
-    ResetTest $procName
-    if {![MatchProcName $options(match) $procName]} {
-      dict set tests $procName skip true
-      continue
-    }
-    if {$options(verbose)} {
-      puts "=== RUN   $procName"
-      set timeStart [clock microseconds]
-    }
-    try {
-      set lambda [dict get $test lambda]
-      uplevel 1 [list apply $lambda $procName]
-    } on error {result returnOptions} {
-      set errorInfo [dict get $returnOptions -errorinfo]
-      puts "--- FAIL  $procName"
-      puts "---       [IndentEachLine $errorInfo 10 1]"
-      dict set tests $procName fail true
-    }
-    if {[dict get $tests $procName fail]} {
-      incr numFail
-    } else {
-      if {$options(verbose)} {
+  set newTests [
+    dict map {procName test} $tests {
+      set testFailMessages {}
+      dict set test skip false
+      if {![MatchProcName $options(match) $procName]} {
+        dict set test skip true
+        if {$options(verbose) >= 2} {
+          puts "=== SKIP   $procName"
+        }
+      } else {
+        set timeStart [clock microseconds]
+        if {$options(verbose) >= 2} {
+          puts "=== RUN   $procName"
+        }
+        try {
+          set lambda [dict get $test lambda]
+          uplevel 1 [list apply $lambda $procName]
+        } on error {result returnOptions} {
+          set errorInfo [dict get $returnOptions -errorinfo]
+          lappend testFailMessages $errorInfo
+        }
         set secondsElapsed [
           expr {([clock microseconds] - $timeStart)/1000000.}
         ]
-        puts [format {--- PASS  %s (%0.2fs)} $procName $secondsElapsed]
+        if {[llength $testFailMessages] > 0} {
+          if {$options(verbose) >= 1} {
+            puts [format {--- FAIL  %s (%0.2fs)} $procName $secondsElapsed]
+            foreach msg $testFailMessages {
+              puts [IndentEachLine $msg 10 0]
+            }
+          }
+        } else {
+          if {$options(verbose) >= 2} {
+            puts [format {--- PASS  %s (%0.2fs)} $procName $secondsElapsed]
+          }
+        }
       }
+      dict set test fail [expr {[llength $testFailMessages] > 0}]
+    }
+  ]
+  set tests $newTests
+  set summary [MakeSummary $newTests]
+  if {$options(verbose) >= 1} {
+    dict with summary {
+      puts "\nTotal: $total,  Passed: $passed,  Skipped: $skipped,  Failed: $failed"
     }
   }
-  set summary [MakeSummary $tests]
-  dict with summary {
-    puts "\nTotal: $total,  Passed: $passed,  Skipped: $skipped,  Failed: $failed"
-  }
-  return $numFail
+  return $summary
 }
 
 
-proc xproc::testFail {procName msg} {
-  variable tests
-  dict set tests $procName fail true
-  puts "--- FAIL  $procName"
-  puts "---       $msg"
+proc xproc::testFail {testState msg} {
+  variable testFailMessages
+  lappend testFailMessages $msg
 }
 
 
 proc xproc::testCases {testState cases lambdaExpr} {
   set i 0
-  foreach case $cases {
-    dict with case {
+  foreach c $cases {
+    set input [dict get $c input]
+    set want [dict get $c want]
+    set returnCodes {ok return}
+    if {[dict exists $c returnCodes]} {
+      set returnCodes [dict get $c returnCodes]
+    }
+    set returnCodes [lmap code $returnCodes {ReturnCodeToValue $code}]
+    try {
       set got [uplevel 1 [list apply $lambdaExpr $input]]
       if {$got ne $want} {
         xproc::testFail $testState "($i) got: $got, want: $want"
+      }
+    } on error {got returnOptions} {
+      if {$got != $want} {
+        xproc::testFail $testState "($i) got: $got, want: $want"
+      }
+      set returnCode [dict get $returnOptions -code]
+      set wantCodeFound false
+      foreach wantCode $returnCodes {
+        if {$returnCode == $wantCode} {
+          set wantCodeFound true
+          break
+        }
+      }
+      if {!$wantCodeFound} {
+        xproc::testFail $testState \
+            "($i) got return code: $returnCode, want one of: $returnCodes"
       }
     }
     incr i
@@ -192,6 +227,27 @@ xproc::proc xproc::descriptions {args} {
     MatchProcName $options(match) $procName
   }
 }
+
+
+xproc::proc xproc::ReturnCodeToValue {code} {
+  set returnCodeValues {ok 0 error 1 return 2 break 3 continue 4}
+  if {[dict exists $returnCodeValues $code]} {
+    return [dict get $returnCodeValues $code]
+  }
+  return $code
+} -test {{t} {
+  set cases {
+    {input ok want 0}
+    {input error want 1}
+    {input return want 2}
+    {input break want 3}
+    {input continue want 4}
+    {input fred want fred}
+    {input 0 want 0}
+    {input 7 want 7}
+  }
+  xproc::testCases $t $cases {{input} {xproc::ReturnCodeToValue $input}}
+}}
 
 
 xproc::proc xproc::MakeSummary {tests} {
@@ -385,13 +441,6 @@ xproc::proc xproc::StripIndent {lines numSpaces} {
 }}
 
 
-proc xproc::ResetTest {procName} {
-  variable tests
-  dict set tests $procName skip false
-  dict set tests $procName fail false
-}
-
-
 xproc::proc xproc::TidyDescription {description} {
   set description [string trimright $description]
   set lines [split $description "\n"]
@@ -465,6 +514,48 @@ xproc::describe xproc::proc {
                                one parameter which is the testState.
 }
 
+xproc::test xproc::proc {{t} {
+  # Check errors
+  set cases {
+    {input {xproc::Dummy-1 {} {} -bob}
+     returnCodes {error} want "unknown option -bob"}
+    {input {xproc::Dummy-2 {} {} bob}
+     returnCodes {error} want "invalid number of arguments"}
+  }
+  xproc::testCases $t $cases {{input} {xproc::proc {*}$input}}
+
+  try {
+    # Check -test and -description
+    xproc::proc xproc::Dummy-3 {a b} {
+      expr {$a+$b}
+    } -test {{t} {
+      set got [xproc::Dummy-3 2 3]
+      set want 5
+      if {$got != $want} {
+        xproc::testFail $t "got: $got, want: $want"
+      }
+    }} -description {Add two numbers together}
+    set gotSummary [xproc::runTests -match {::xproc::Dummy-*} -verbose 0]
+    dict with gotSummary {
+      if {$passed != 1 || $failed != 0 || $total < 5 || $total > 100} {
+        xproc::testFail $t "summary incorrect - got: $gotSummary"
+      }
+    }
+    set gotDescriptions [xproc::descriptions -match {::xproc::Dummy-*}]
+    set wantDescriptions [
+      dict create ::xproc::Dummy-3 {Add two numbers together}
+    ]
+    if {$gotDescriptions ne $wantDescriptions} {
+      xproc::testFail $t \
+          "descriptions - got: $gotDescriptions, want: $wantDescriptions"
+    }
+  } finally {
+    xproc::remove all -match {::xproc::Dummy-*}
+    rename xproc::Dummy-3 ""
+  }
+}}
+
+
 xproc::describe xproc::remove {
   Remove xproc functionality from procedures
 
@@ -500,7 +591,11 @@ xproc::describe xproc::runTests {
   xproc::runTests ?-verbose? ?-match patternList?
 
   The switches do the following:
-    -verbose              Outputs tests that pass not just those that fail
+    -verbose level        Controls the level of output to stdout:
+                            0  None
+                            1  Summary and failing tests
+                            2  Summary and all tests
+                          The default is 1
     -match patternList    Matches procedureNames against patterns in
                           patternList, the default is {"*"}
 }
@@ -522,8 +617,9 @@ xproc::describe xproc::testCases {
 
   The cases are a list of dictionaries that describe each test case with
   the following keys:
-    input       The value to pass to the lambda
-    want        The value to test against the result of the lambda
+    input        The value to pass to the lambda
+    want         The value to test against the result of the lambda
+    returnCodes  Return codes to test against, the default is {ok return}
 
   The lambda has one parameter which is the input for the test case.
 }
