@@ -84,6 +84,9 @@ proc xproc::test {procName lambda} {
   set fullProcName [
     uplevel 1 [list namespace which -command $procName]
   ]
+  if {$fullProcName eq ""} {
+    return -code error "procedureName doesn't exist: $procName"
+  }
   dict set tests $fullProcName [dict create lambda $lambda]
 }
 
@@ -93,6 +96,9 @@ proc xproc::describe {procName description} {
   set fullProcName [
     uplevel 1 [list namespace which -command $procName]
   ]
+  if {$fullProcName eq ""} {
+    return -code error "procedureName doesn't exist: $procName"
+  }
   dict set descriptions $fullProcName [TidyDescription $description]
 }
 
@@ -173,16 +179,15 @@ proc xproc::testFail {testState msg} {
 
 proc xproc::testCases {testState cases lambdaExpr} {
   set i 0
-  foreach c $cases {
-    set input [dict get $c input]
-    set result [dict get $c result]
+  foreach case $cases {
+    set result [dict get $case result]
     set returnCodes {ok return}
-    if {[dict exists $c returnCodes]} {
-      set returnCodes [dict get $c returnCodes]
+    if {[dict exists $case returnCodes]} {
+      set returnCodes [dict get $case returnCodes]
     }
     set returnCodes [lmap code $returnCodes {ReturnCodeToValue $code}]
     try {
-      set got [uplevel 1 [list apply $lambdaExpr $input]]
+      set got [uplevel 1 [list apply $lambdaExpr $case]]
       if {$got ne $result} {
         xproc::testFail $testState "($i) got: $got, want: $result"
       }
@@ -245,7 +250,9 @@ xproc::proc xproc::ReturnCodeToValue {code} {
     {input 0 result 0}
     {input 7 result 7}
   }
-  xproc::testCases $t $cases {{input} {xproc::ReturnCodeToValue $input}}
+  xproc::testCases $t $cases {{case} {
+    dict with case {xproc::ReturnCodeToValue $input}
+  }}
 }}
 
 
@@ -287,7 +294,9 @@ xproc::proc xproc::MakeSummary {tests} {
                         name-2 {skip true fail false}} \
      result [dict create total 2 passed 0 skipped 2 failed 0]] \
   ]
-  xproc::testCases $t $cases {{input} {xproc::MakeSummary $input}}
+  xproc::testCases $t $cases {{case} {
+    dict with case {xproc::MakeSummary $input}
+  }}
 }}
 
 
@@ -306,7 +315,9 @@ xproc::proc xproc::MatchProcName {matchPatterns procName} {
     {input {{"*bob*" "*fred*"} somefredName} result true}
     {input {{"*bob*" "*fred*"} someharroldName} result false}
   }
-  xproc::testCases $t $cases {{input} {xproc::MatchProcName {*}$input}}
+  xproc::testCases $t $cases {{case} {
+    dict with case {xproc::MatchProcName {*}$input}
+  }}
 }}
 
 
@@ -360,7 +371,9 @@ xproc::proc xproc::CountIndent {line} {
     {input {  hello this is some text   } result 2}
     {input {    hello this is some text } result 4}
   }
-  xproc::testCases $t $cases {{input} {xproc::CountIndent $input}}
+  xproc::testCases $t $cases {{case} {
+    dict with case {xproc::CountIndent $input}
+  }}
 }}
 
 
@@ -491,7 +504,9 @@ line to see if everything is aligned properly
         line to see if everything is aligned properly}}
   }
 
-  xproc::testCases $t $cases {{input} {xproc::TidyDescription $input}}
+  xproc::testCases $t $cases {{case} {
+    dict with case {xproc::TidyDescription $input}
+  }}
 }}
 
 
@@ -521,7 +536,9 @@ xproc::test xproc::proc {{t} {
     {input {xproc::Dummy-2 {} {} bob}
      returnCodes {error} result "invalid number of arguments"}
   }
-  xproc::testCases $t $cases {{input} {xproc::proc {*}$input}}
+  xproc::testCases $t $cases {{case} {
+    dict with case {xproc::proc {*}$input}
+  }}
 
   try {
     # Check -test and -description
@@ -578,7 +595,9 @@ xproc::test xproc::remove {{t} {
     {input {bob}
      returnCodes {error} result "unknown type: bob"}
   }
-  xproc::testCases $t $cases {{input} {xproc::proc {*}$input}}
+  xproc::testCases $t $cases {{case} {
+    dict with case {xproc::proc {*}$input}
+  }}
 
   try {
     for {set n 1} {$n <= 3} {incr n} {
@@ -592,14 +611,14 @@ xproc::test xproc::remove {{t} {
         }
       }} -description {Add two numbers together}
     }
-    xproc::remove tests -match *Dummy-2
+    xproc::remove tests -match {*Dummy-2}
     set gotSummary [xproc::runTests -match {::xproc::Dummy-*} -verbose 0]
     dict with gotSummary {
       if {$passed != 2 || $failed != 0 || $total < 5 || $total > 100} {
         xproc::testFail $t "after remove tests Dummy-2 - summary incorrect - got: $gotSummary"
       }
     }
-    xproc::remove descriptions -match *Dummy-3
+    xproc::remove descriptions -match {*Dummy-3}
     set gotDescriptions [xproc::descriptions -match {::xproc::Dummy-*}]
     set gotDescriptionProcNames [dict keys $gotDescriptions]
     set wantDescriptionProcNames {::xproc::Dummy-1 ::xproc::Dummy-2}
@@ -637,11 +656,35 @@ xproc::describe xproc::test {
   The lambda has one parameter which is the testState
 }
 
+xproc::test xproc::test {{t} {
+  set cases {
+    {input {DummyNotExist {{t} {}}}
+     returnCodes {error}
+     result {procedureName doesn't exist: DummyNotExist}}
+  }
+  xproc::testCases $t $cases {{case} {
+    dict with case {xproc::test {*}$input}
+  }}
+}}
+
+
 xproc::describe xproc::describe {
   Record the given description for a procedure
 
   xproc::describe procedureName description
 }
+
+xproc::test xproc::describe {{t} {
+  set cases {
+    {input {DummyNotExist {{t} {}}}
+     returnCodes {error}
+     result {procedureName doesn't exist: DummyNotExist}}
+  }
+  xproc::testCases $t $cases {{case} {
+    dict with case {xproc::describe {*}$input}
+  }}
+}}
+
 
 xproc::describe xproc::runTests {
   Run the tests recorded using xproc
@@ -678,8 +721,9 @@ xproc::describe xproc::testCases {
     input        The value to pass to the lambda
     result       The value to test against the result of the lambda
     returnCodes  Return codes to test against, the default is {ok return}
+  Extra keys may be present and therefore passed to the lambda.
 
-  The lambda has one parameter which is the input for the test case.
+  The lambda has one parameter which is the test case.
 }
 
 xproc::describe xproc::descriptions {
@@ -691,3 +735,20 @@ xproc::describe xproc::descriptions {
     -match patternList    Matches procedureNames against patterns in
                           patternList, the default is {"*"}
 }
+
+xproc::test xproc::descriptions {{t} {
+  set cases {
+    {input {-match {*xproc::testCases *xproc::testFail}}
+     result {1} minNum 2 maxNum 2}
+    {input {-match {*xproc*}}
+     result {1} minNum 5 maxNum 100}
+    {input {} result {1} minNum 5 maxNum 25}
+  }
+  xproc::testCases $t $cases {{case} {
+    dict with case {
+      set got [xproc::descriptions {*}$input]
+      set numGot [dict size $got]
+      return [expr {$numGot >= $minNum && $numGot <= $maxNum}]
+    }
+  }}
+}}

@@ -7,7 +7,6 @@ set ModuleDir [file normalize [file join $ThisScriptDir ..]]
 ::tcl::tm::path add $ModuleDir
 
 package require xproc
-xproc::remove descriptions -match {::xproc::*}
 
 xproc::proc addNums2 {a b} {
   expr {$a+$b}
@@ -48,7 +47,9 @@ xproc::proc addNums3 {a b} {
     {input {2 3} result 5}
     {input {2 4} result 7}
   }
-  xproc::testCases $t $cases {{input} {addNums3 {*}$input}}
+  xproc::testCases $t $cases {{case} {
+    dict with case {addNums3 {*}$input}
+  }}
 }}
 
 
@@ -65,7 +66,9 @@ xproc::proc addNums4 {a b} {
     {input {2 3} result 5}
     {input {2 4} result 6}
   }
-  xproc::testCases $t $cases {{input} {addNums4 {*}$input}}
+  xproc::testCases $t $cases {{case} {
+    dict with case {addNums4 {*}$input}
+  }}
 }}
 
 
@@ -84,7 +87,9 @@ xproc::test addNums5 {{t} {
     {input {2 3} result 18}
     {input {2 4} result 6}
   }
-  xproc::testCases $t $cases {{input} {addNums5 {*}$input}}
+  xproc::testCases $t $cases {{case} {
+    dict with case {addNums5 {*}$input}
+  }}
 }}
 
 
@@ -132,7 +137,9 @@ xproc::proc subNums {a b} {
     {input {2 4} result -2}
     {input {4 4} result 0}
   }
-  xproc::testCases $t $cases {{input} {subNums {*}$input}}
+  xproc::testCases $t $cases {{case} {
+    dict with case {subNums {*}$input}
+  }}
 }}
 
 
@@ -303,19 +310,18 @@ xproc::proc waitMSFail {ms} {
   xproc::testFail $t "here is an error"
 }}
 
+test runTests-1 {Test ::xproc::test tests} -body {
+  xproc::runTests -verbose 1 -match {*xproc*}
+} -cleanup {
+  xproc::remove all -match {*xproc*}
+} -output {
+Total: 25,  Passed: 12,  Skipped: 13,  Failed: 0
+} -result {total 25 passed 12 skipped 13 failed 0}
 
-test runTests-1 {Ensure timings work} -body {
+
+test runTests-2 {Ensure timings work} -body {
   xproc::runTests -verbose 2 -match {*waitMS*}
-} -output {=== SKIP   ::xproc::ReturnCodeToValue
-=== SKIP   ::xproc::MakeSummary
-=== SKIP   ::xproc::MatchProcName
-=== SKIP   ::xproc::IndentEachLine
-=== SKIP   ::xproc::CountIndent
-=== SKIP   ::xproc::StripIndent
-=== SKIP   ::xproc::TidyDescription
-=== SKIP   ::xproc::proc
-=== SKIP   ::xproc::remove
-=== SKIP   ::addNums2
+} -output {=== SKIP   ::addNums2
 === SKIP   ::addNums3
 === SKIP   ::addNums4
 === SKIP   ::addNums5
@@ -332,12 +338,13 @@ test runTests-1 {Ensure timings work} -body {
 --- FAIL  ::waitMSFail (0.10s)
           here is an error
 
-Total: 22,  Passed: 1,  Skipped: 20,  Failed: 1
-} -result [dict create total 22 passed 1 skipped 20 failed 1]
-xproc::remove all -match {*waitMS*}
+Total: 13,  Passed: 1,  Skipped: 11,  Failed: 1
+} -cleanup {
+  xproc::remove all -match {*waitMS*}
+} -result [dict create total 13 passed 1 skipped 11 failed 1]
 
 
-test runTests-2 {Provide correct test output} -body {
+test runTests-3 {Provide correct test output} -body {
   xproc::runTests
 } -output [string map [list !openBrace! "\{"] {--- FAIL  ::addNums2 (0.00s)
           (1) got: 5, want: 18
@@ -386,31 +393,13 @@ test runTests-2 {Provide correct test output} -body {
               invoked from within
           "uplevel 1 [list apply $lambda $procName]"
 
-Total: 20,  Passed: 15,  Skipped: 0,  Failed: 5
-}] -result [dict create total 20 passed 15 skipped 0 failed 5]
+Total: 11,  Passed: 6,  Skipped: 0,  Failed: 5
+}] -result [dict create total 11 passed 6 skipped 0 failed 5]
 
 
-test runTests-3 {-verbose 2 should list passing tests} -body {
+test runTests-4 {-verbose 2 should list passing tests} -body {
   xproc::runTests -verbose 2
-} -output [string map [list !openBrace! "\{"] {=== RUN   ::xproc::ReturnCodeToValue
---- PASS  ::xproc::ReturnCodeToValue (0.00s)
-=== RUN   ::xproc::MakeSummary
---- PASS  ::xproc::MakeSummary (0.00s)
-=== RUN   ::xproc::MatchProcName
---- PASS  ::xproc::MatchProcName (0.00s)
-=== RUN   ::xproc::IndentEachLine
---- PASS  ::xproc::IndentEachLine (0.00s)
-=== RUN   ::xproc::CountIndent
---- PASS  ::xproc::CountIndent (0.00s)
-=== RUN   ::xproc::StripIndent
---- PASS  ::xproc::StripIndent (0.00s)
-=== RUN   ::xproc::TidyDescription
---- PASS  ::xproc::TidyDescription (0.00s)
-=== RUN   ::xproc::proc
---- PASS  ::xproc::proc (0.00s)
-=== RUN   ::xproc::remove
---- PASS  ::xproc::remove (0.00s)
-=== RUN   ::addNums2
+} -output [string map [list !openBrace! "\{"] {=== RUN   ::addNums2
 --- FAIL  ::addNums2 (0.00s)
           (1) got: 5, want: 18
 === RUN   ::addNums3
@@ -474,24 +463,13 @@ test runTests-3 {-verbose 2 should list passing tests} -body {
 === RUN   ::dTestNamespace::cmdA
 --- PASS  ::dTestNamespace::cmdA (0.00s)
 
-Total: 20,  Passed: 15,  Skipped: 0,  Failed: 5
-}] -result [dict create total 20 passed 15 skipped 0 failed 5]
+Total: 11,  Passed: 6,  Skipped: 0,  Failed: 5
+}] -result [dict create total 11 passed 6 skipped 0 failed 5]
 
 
-test runTests-4 {Just test certain tests using -match} -body {
+test runTests-5 {Just test certain tests using -match} -body {
   xproc::runTests -verbose 2 -match {*::M* ::ad*ums4 *2 ::aTest*}
-} -output {=== SKIP   ::xproc::ReturnCodeToValue
-=== RUN   ::xproc::MakeSummary
---- PASS  ::xproc::MakeSummary (0.00s)
-=== RUN   ::xproc::MatchProcName
---- PASS  ::xproc::MatchProcName (0.00s)
-=== SKIP   ::xproc::IndentEachLine
-=== SKIP   ::xproc::CountIndent
-=== SKIP   ::xproc::StripIndent
-=== SKIP   ::xproc::TidyDescription
-=== SKIP   ::xproc::proc
-=== SKIP   ::xproc::remove
-=== RUN   ::addNums2
+} -output {=== RUN   ::addNums2
 --- FAIL  ::addNums2 (0.00s)
           (1) got: 5, want: 18
 === SKIP   ::addNums3
@@ -509,13 +487,13 @@ test runTests-4 {Just test certain tests using -match} -body {
 --- PASS  ::aTestNamespace::cmdC (0.00s)
 === SKIP   ::dTestNamespace::cmdA
 
-Total: 20,  Passed: 6,  Skipped: 13,  Failed: 1
-} -result [dict create total 20 passed 6 skipped 13 failed 1]
+Total: 11,  Passed: 4,  Skipped: 6,  Failed: 1
+} -result [dict create total 11 passed 4 skipped 6 failed 1]
 
 
-test runTests-5 {-verbose 0 should produce no output to stdout} -body {
+test runTests-6 {-verbose 0 should produce no output to stdout} -body {
   xproc::runTests -verbose 0
-} -output {} -result [dict create total 20 passed 15 skipped 0 failed 5]
+} -output {} -result [dict create total 11 passed 6 skipped 0 failed 5]
 
 
 test descriptions-1 {Return descriptions} -body {
