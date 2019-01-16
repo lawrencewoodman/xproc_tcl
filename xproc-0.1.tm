@@ -26,7 +26,7 @@ proc xproc::proc {procName procArgs procBody args} {
     switch -glob -- [lindex $args 0] {
       -desc* {set args [lassign $args - options(description)]}
       -test {set args [lassign $args - options(test)]}
-      -*      {return -code error "unknown option [lindex $args 0]"}
+      -*      {return -code error "unknown option: [lindex $args 0]"}
       default break
     }
   }
@@ -53,7 +53,7 @@ proc xproc::remove {type args} {
   while {[llength $args]} {
     switch -glob -- [lindex $args 0] {
       -match {set args [lassign $args - options(match)]}
-      -*      {return -code error "unknown option [lindex $args 0]"}
+      -*      {return -code error "unknown option: [lindex $args 0]"}
       default break
     }
   }
@@ -112,7 +112,7 @@ proc xproc::runTests {args} {
     switch -glob -- [lindex $args 0] {
       -match {set args [lassign $args - options(match)]}
       -verbose {set args [lassign $args - options(verbose)]}
-      -*      {return -code error "unknown option [lindex $args 0]"}
+      -*      {return -code error "unknown option: [lindex $args 0]"}
       default break
     }
   }
@@ -219,7 +219,7 @@ xproc::proc xproc::descriptions {args} {
   while {[llength $args]} {
     switch -glob -- [lindex $args 0] {
       -match {set args [lassign $args - options(match)]}
-      -*      {return -code error "unknown option [lindex $args 0]"}
+      -*      {return -code error "unknown option: [lindex $args 0]"}
       default break
     }
   }
@@ -532,7 +532,7 @@ xproc::test xproc::proc {{t} {
   # Check errors
   set cases {
     {input {xproc::Dummy-1 {} {} -bob}
-     returnCodes {error} result "unknown option -bob"}
+     returnCodes {error} result "unknown option: -bob"}
     {input {xproc::Dummy-2 {} {} bob}
      returnCodes {error} result "invalid number of arguments"}
   }
@@ -591,7 +591,7 @@ xproc::test xproc::remove {{t} {
   # Check errors
   set cases {
     {input {all -fred}
-     returnCodes {error} result "unknown option -fred"}
+     returnCodes {error} result "unknown option: -fred"}
     {input {bob}
      returnCodes {error} result "unknown type: bob"}
   }
