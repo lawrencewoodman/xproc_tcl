@@ -26,7 +26,6 @@ proc xproc::proc {procName procArgs procBody args} {
     switch -glob -- [lindex $args 0] {
       -desc* {set args [lassign $args - options(description)]}
       -test {set args [lassign $args - options(test)]}
-      --      {set args [lrange $args 1 end] ; break}
       -*      {return -code error "unknown option [lindex $args 0]"}
       default break
     }
