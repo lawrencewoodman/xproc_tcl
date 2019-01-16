@@ -340,7 +340,7 @@ test runTests-2 {Provide correct test output} -body {
             forea..."
               ("uplevel" body line 1)
               invoked from within
-          "uplevel 1 [list apply $lambda $commandName]"
+          "uplevel 1 [list apply $lambda $procName]"
 --- FAIL  ::raiseErrorCmd
 ---       can't read "c": no such variable
               while executing
@@ -357,7 +357,7 @@ test runTests-2 {Provide correct test output} -body {
           }} ::raiseErrorCmd"
               ("uplevel" body line 1)
               invoked from within
-          "uplevel 1 [list apply $lambda $commandName]"
+          "uplevel 1 [list apply $lambda $procName]"
 
 Total: 17,  Passed: 12,  Skipped: 0,  Failed: 5
 }] -result 5
@@ -367,8 +367,8 @@ test runTests-3 {Provide extra test output with -verbose} -body {
   xproc::runTests -verbose
 } -output [string map [list !openBrace! "\{"] {=== RUN   ::xproc::MakeSummary
 --- PASS  ::xproc::MakeSummary (0.00s)
-=== RUN   ::xproc::MatchCommandName
---- PASS  ::xproc::MatchCommandName (0.00s)
+=== RUN   ::xproc::MatchProcName
+--- PASS  ::xproc::MatchProcName (0.00s)
 === RUN   ::xproc::IndentEachLine
 --- PASS  ::xproc::IndentEachLine (0.00s)
 === RUN   ::xproc::CountIndent
@@ -415,7 +415,7 @@ test runTests-3 {Provide extra test output with -verbose} -body {
             forea..."
               ("uplevel" body line 1)
               invoked from within
-          "uplevel 1 [list apply $lambda $commandName]"
+          "uplevel 1 [list apply $lambda $procName]"
 === RUN   ::subNums
 --- PASS  ::subNums (0.00s)
 === RUN   ::raiseErrorCmd
@@ -435,7 +435,7 @@ test runTests-3 {Provide extra test output with -verbose} -body {
           }} ::raiseErrorCmd"
               ("uplevel" body line 1)
               invoked from within
-          "uplevel 1 [list apply $lambda $commandName]"
+          "uplevel 1 [list apply $lambda $procName]"
 === RUN   ::aTestNamespace::cmdA
 --- PASS  ::aTestNamespace::cmdA (0.00s)
 === RUN   ::aTestNamespace::cmdB
@@ -453,8 +453,8 @@ test runTests-4 {Just test certain tests using -match} -body {
   xproc::runTests -verbose -match {*::M* ::ad*ums4 *2 ::aTest*}
 } -output [string map [list !openBrace! "\{"] {=== RUN   ::xproc::MakeSummary
 --- PASS  ::xproc::MakeSummary (0.00s)
-=== RUN   ::xproc::MatchCommandName
---- PASS  ::xproc::MatchCommandName (0.00s)
+=== RUN   ::xproc::MatchProcName
+--- PASS  ::xproc::MatchProcName (0.00s)
 === RUN   ::addNums2
 --- FAIL  ::addNums2
 ---       (1) got: 5, want: 18

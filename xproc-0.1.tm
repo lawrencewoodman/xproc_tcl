@@ -19,7 +19,7 @@ namespace eval xproc {
 ###################################################################
 
 
-proc xproc::proc {commandName commandArgs commandBody args} {
+proc xproc::proc {procName procArgs procBody args} {
   array set options {}
   while {[llength $args]} {
     switch -glob -- [lindex $args 0] {
@@ -34,14 +34,14 @@ proc xproc::proc {commandName commandArgs commandBody args} {
     return -code error "invalid number of arguments"
   }
 
-  uplevel 1 [list proc $commandName $commandArgs $commandBody]
+  uplevel 1 [list proc $procName $procArgs $procBody]
 
   if {[info exists options(description)]} {
-    uplevel 1 [list xproc::describe $commandName $options(description)]
+    uplevel 1 [list xproc::describe $procName $options(description)]
   }
 
   if {[info exists options(test)]} {
-    uplevel 1 [list xproc::test $commandName $options(test)]
+    uplevel 1 [list xproc::test $procName $options(test)]
   }
 }
 
@@ -61,8 +61,8 @@ proc xproc::remove {type args} {
     return -code error "invalid number of arguments"
   }
   set filterLambda {{matchPatterns d} {
-    dict filter $d script {commandName -} {
-      expr {![MatchCommandName $matchPatterns $commandName]}
+    dict filter $d script {procName -} {
+      expr {![MatchProcName $matchPatterns $procName]}
     }
   } xproc}
   switch $type {
@@ -79,21 +79,21 @@ proc xproc::remove {type args} {
 }
 
 
-proc xproc::test {commandName lambda} {
+proc xproc::test {procName lambda} {
   variable tests
-  set fullCommandName [
-    uplevel 1 [list namespace which -command $commandName]
+  set fullProcName [
+    uplevel 1 [list namespace which -command $procName]
   ]
-  dict set tests $fullCommandName [dict create lambda $lambda]
+  dict set tests $fullProcName [dict create lambda $lambda]
 }
 
 
-proc xproc::describe {commandName description} {
+proc xproc::describe {procName description} {
   variable descriptions
-  set fullCommandName [
-    uplevel 1 [list namespace which -command $commandName]
+  set fullProcName [
+    uplevel 1 [list namespace which -command $procName]
   ]
-  dict set descriptions $fullCommandName [TidyDescription $description]
+  dict set descriptions $fullProcName [TidyDescription $description]
 }
 
 
@@ -114,33 +114,33 @@ proc xproc::runTests {args} {
   }
 
   set numFail 0
-  dict for {commandName test} $tests {
-    ResetTest $commandName
-    if {![MatchCommandName $options(match) $commandName]} {
-      dict set tests $commandName skip true
+  dict for {procName test} $tests {
+    ResetTest $procName
+    if {![MatchProcName $options(match) $procName]} {
+      dict set tests $procName skip true
       continue
     }
     if {$options(verbose)} {
-      puts "=== RUN   $commandName"
+      puts "=== RUN   $procName"
       set timeStart [clock microseconds]
     }
     try {
       set lambda [dict get $test lambda]
-      uplevel 1 [list apply $lambda $commandName]
+      uplevel 1 [list apply $lambda $procName]
     } on error {result returnOptions} {
       set errorInfo [dict get $returnOptions -errorinfo]
-      puts "--- FAIL  $commandName"
+      puts "--- FAIL  $procName"
       puts "---       [IndentEachLine $errorInfo 10 1]"
-      dict set tests $commandName fail true
+      dict set tests $procName fail true
     }
-    if {[dict get $tests $commandName fail]} {
+    if {[dict get $tests $procName fail]} {
       incr numFail
     } else {
       if {$options(verbose)} {
         set secondsElapsed [
           expr {([clock microseconds] - $timeStart)/1000000.}
         ]
-        puts [format {--- PASS  %s (%0.2fs)} $commandName $secondsElapsed]
+        puts [format {--- PASS  %s (%0.2fs)} $procName $secondsElapsed]
       }
     }
   }
@@ -152,10 +152,10 @@ proc xproc::runTests {args} {
 }
 
 
-proc xproc::testFail {commandName msg} {
+proc xproc::testFail {procName msg} {
   variable tests
-  dict set tests $commandName fail true
-  puts "--- FAIL  $commandName"
+  dict set tests $procName fail true
+  puts "--- FAIL  $procName"
   puts "---       $msg"
 }
 
@@ -188,8 +188,8 @@ xproc::proc xproc::descriptions {args} {
     return -code error "invalid number of arguments"
   }
 
-  dict filter $descriptions script {commandName description} {
-    MatchCommandName $options(match) $commandName
+  dict filter $descriptions script {procName description} {
+    MatchProcName $options(match) $procName
   }
 }
 
@@ -198,7 +198,7 @@ xproc::proc xproc::MakeSummary {tests} {
   set total [llength [dict keys $tests]]
   set failed 0
   set skipped 0
-  dict for {commandName test} $tests {
+  dict for {procName test} $tests {
     if {[dict get $test fail]} {incr failed}
     if {[dict get $test skip]} {incr skipped}
   }
@@ -236,10 +236,10 @@ xproc::proc xproc::MakeSummary {tests} {
 }}
 
 
-# Does commandName match any of the patterns
-xproc::proc xproc::MatchCommandName {matchPatterns commandName} {
+# Does procName match any of the patterns
+xproc::proc xproc::MatchProcName {matchPatterns procName} {
   foreach matchPattern $matchPatterns {
-    if {[string match $matchPattern $commandName]} {return true}
+    if {[string match $matchPattern $procName]} {return true}
   }
   return false
 } -test {{t} {
@@ -251,7 +251,7 @@ xproc::proc xproc::MatchCommandName {matchPatterns commandName} {
     {input {{"*bob*" "*fred*"} somefredName} want true}
     {input {{"*bob*" "*fred*"} someharroldName} want false}
   }
-  xproc::testCases $t $cases {{input} {xproc::MatchCommandName {*}$input}}
+  xproc::testCases $t $cases {{input} {xproc::MatchProcName {*}$input}}
 }}
 
 
@@ -385,10 +385,10 @@ xproc::proc xproc::StripIndent {lines numSpaces} {
 }}
 
 
-proc xproc::ResetTest {commandName} {
+proc xproc::ResetTest {procName} {
   variable tests
-  dict set tests $commandName skip false
-  dict set tests $commandName fail false
+  dict set tests $procName skip false
+  dict set tests $procName fail false
 }
 
 
