@@ -74,7 +74,7 @@ proc xproc::remove {type args} {
       set tests [apply $filterLambda $options(match) $tests]
       set descriptions [apply $filterLambda $options(match) $descriptions]
     }
-    default {return -code error "invalid type: $type"}
+    default {return -code error "unknown type: $type"}
   }
 }
 
@@ -497,9 +497,9 @@ line to see if everything is aligned properly
 
 
 
-#########################################
-# Descriptions for exported procedures
-#########################################
+##################################################
+# Tests and Descriptions for exported procedures
+##################################################
 
 xproc::describe xproc::proc {
   Create a Tcl procedure, like ::proc, but extended with extra switches
@@ -569,6 +569,65 @@ xproc::describe xproc::remove {
     -match patternList    Matches procedureNames against patterns in
                           patternList, the default is {"*"}
 }
+
+xproc::test xproc::remove {{t} {
+  # Check errors
+  set cases {
+    {input {all -fred}
+     returnCodes {error} result "unknown option -fred"}
+    {input {bob}
+     returnCodes {error} result "unknown type: bob"}
+  }
+  xproc::testCases $t $cases {{input} {xproc::proc {*}$input}}
+
+  try {
+    for {set n 1} {$n <= 3} {incr n} {
+      xproc::proc xproc::Dummy-$n {a b} {
+        expr {$a+$b}
+      } -test {{t} {
+        set got [xproc::Dummy-3 2 3]
+        set want 5
+        if {$got != $want} {
+          xproc::testFail $t "got: $got, want: $want"
+        }
+      }} -description {Add two numbers together}
+    }
+    xproc::remove tests -match *Dummy-2
+    set gotSummary [xproc::runTests -match {::xproc::Dummy-*} -verbose 0]
+    dict with gotSummary {
+      if {$passed != 2 || $failed != 0 || $total < 5 || $total > 100} {
+        xproc::testFail $t "after remove tests Dummy-2 - summary incorrect - got: $gotSummary"
+      }
+    }
+    xproc::remove descriptions -match *Dummy-3
+    set gotDescriptions [xproc::descriptions -match {::xproc::Dummy-*}]
+    set gotDescriptionProcNames [dict keys $gotDescriptions]
+    set wantDescriptionProcNames {::xproc::Dummy-1 ::xproc::Dummy-2}
+    if {$gotDescriptionProcNames ne $wantDescriptionProcNames} {
+      xproc::testFail $t \
+          "after remove descriptions Dummy-3 - descriptions - got keys: $gotDescriptionProcNames, want: $wantDescriptionProcNames"
+    }
+    xproc::remove all -match {::xproc::Dummy-*}
+    set gotSummary [xproc::runTests -match {::xproc::Dummy-*} -verbose 0]
+    dict with gotSummary {
+      if {$passed != 0 || $failed != 0 || $total < 5 || $total > 100} {
+        xproc::testFail $t "after remove all Dummy-* - summary incorrect - got: $gotSummary"
+      }
+    }
+    set gotDescriptions [xproc::descriptions -match {::xproc::Dummy-*}]
+    set gotDescriptionProcNames [dict keys $gotDescriptions]
+    if {[llength $gotDescriptionProcNames] != 0} {
+      xproc::testFail $t \
+          "after remove descriptions all Dummy-* descriptions - got keys: $gotDescriptionProcNames, want: $wantDescriptionProcNames"
+    }
+  } finally {
+    xproc::remove all -match {::xproc::Dummy-*}
+    rename xproc::Dummy-1 ""
+    rename xproc::Dummy-2 ""
+    rename xproc::Dummy-3 ""
+  }
+}}
+
 
 xproc::describe xproc::test {
   Record the given lambda to test a procedure

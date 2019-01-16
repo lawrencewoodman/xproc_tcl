@@ -314,6 +314,7 @@ test runTests-1 {Ensure timings work} -body {
 === SKIP   ::xproc::StripIndent
 === SKIP   ::xproc::TidyDescription
 === SKIP   ::xproc::proc
+=== SKIP   ::xproc::remove
 === SKIP   ::addNums2
 === SKIP   ::addNums3
 === SKIP   ::addNums4
@@ -331,8 +332,8 @@ test runTests-1 {Ensure timings work} -body {
 --- FAIL  ::waitMSFail (0.10s)
           here is an error
 
-Total: 21,  Passed: 1,  Skipped: 19,  Failed: 1
-} -result [dict create total 21 passed 1 skipped 19 failed 1]
+Total: 22,  Passed: 1,  Skipped: 20,  Failed: 1
+} -result [dict create total 22 passed 1 skipped 20 failed 1]
 xproc::remove all -match {*waitMS*}
 
 
@@ -385,8 +386,8 @@ test runTests-2 {Provide correct test output} -body {
               invoked from within
           "uplevel 1 [list apply $lambda $procName]"
 
-Total: 19,  Passed: 14,  Skipped: 0,  Failed: 5
-}] -result [dict create total 19 passed 14 skipped 0 failed 5]
+Total: 20,  Passed: 15,  Skipped: 0,  Failed: 5
+}] -result [dict create total 20 passed 15 skipped 0 failed 5]
 
 
 test runTests-3 {-verbose 2 should list passing tests} -body {
@@ -407,6 +408,8 @@ test runTests-3 {-verbose 2 should list passing tests} -body {
 --- PASS  ::xproc::TidyDescription (0.00s)
 === RUN   ::xproc::proc
 --- PASS  ::xproc::proc (0.00s)
+=== RUN   ::xproc::remove
+--- PASS  ::xproc::remove (0.00s)
 === RUN   ::addNums2
 --- FAIL  ::addNums2 (0.00s)
           (1) got: 5, want: 18
@@ -471,8 +474,8 @@ test runTests-3 {-verbose 2 should list passing tests} -body {
 === RUN   ::dTestNamespace::cmdA
 --- PASS  ::dTestNamespace::cmdA (0.00s)
 
-Total: 19,  Passed: 14,  Skipped: 0,  Failed: 5
-}] -result [dict create total 19 passed 14 skipped 0 failed 5]
+Total: 20,  Passed: 15,  Skipped: 0,  Failed: 5
+}] -result [dict create total 20 passed 15 skipped 0 failed 5]
 
 
 test runTests-4 {Just test certain tests using -match} -body {
@@ -487,6 +490,7 @@ test runTests-4 {Just test certain tests using -match} -body {
 === SKIP   ::xproc::StripIndent
 === SKIP   ::xproc::TidyDescription
 === SKIP   ::xproc::proc
+=== SKIP   ::xproc::remove
 === RUN   ::addNums2
 --- FAIL  ::addNums2 (0.00s)
           (1) got: 5, want: 18
@@ -505,13 +509,13 @@ test runTests-4 {Just test certain tests using -match} -body {
 --- PASS  ::aTestNamespace::cmdC (0.00s)
 === SKIP   ::dTestNamespace::cmdA
 
-Total: 19,  Passed: 6,  Skipped: 12,  Failed: 1
-} -result [dict create total 19 passed 6 skipped 12 failed 1]
+Total: 20,  Passed: 6,  Skipped: 13,  Failed: 1
+} -result [dict create total 20 passed 6 skipped 13 failed 1]
 
 
 test runTests-5 {-verbose 0 should produce no output to stdout} -body {
   xproc::runTests -verbose 0
-} -output {} -result [dict create total 19 passed 14 skipped 0 failed 5]
+} -output {} -result [dict create total 20 passed 15 skipped 0 failed 5]
 
 
 test descriptions-1 {Return descriptions} -body {
