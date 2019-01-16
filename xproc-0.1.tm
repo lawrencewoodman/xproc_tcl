@@ -175,7 +175,7 @@ proc xproc::testCases {testState cases lambdaExpr} {
   set i 0
   foreach c $cases {
     set input [dict get $c input]
-    set want [dict get $c want]
+    set result [dict get $c result]
     set returnCodes {ok return}
     if {[dict exists $c returnCodes]} {
       set returnCodes [dict get $c returnCodes]
@@ -183,12 +183,12 @@ proc xproc::testCases {testState cases lambdaExpr} {
     set returnCodes [lmap code $returnCodes {ReturnCodeToValue $code}]
     try {
       set got [uplevel 1 [list apply $lambdaExpr $input]]
-      if {$got ne $want} {
-        xproc::testFail $testState "($i) got: $got, want: $want"
+      if {$got ne $result} {
+        xproc::testFail $testState "($i) got: $got, want: $result"
       }
     } on error {got returnOptions} {
-      if {$got != $want} {
-        xproc::testFail $testState "($i) got: $got, want: $want"
+      if {$got != $result} {
+        xproc::testFail $testState "($i) got: $got, want: $result"
       }
       set returnCode [dict get $returnOptions -code]
       set wantCodeFound false
@@ -236,14 +236,14 @@ xproc::proc xproc::ReturnCodeToValue {code} {
   return $code
 } -test {{t} {
   set cases {
-    {input ok want 0}
-    {input error want 1}
-    {input return want 2}
-    {input break want 3}
-    {input continue want 4}
-    {input fred want fred}
-    {input 0 want 0}
-    {input 7 want 7}
+    {input ok result 0}
+    {input error result 1}
+    {input return result 2}
+    {input break result 3}
+    {input continue result 4}
+    {input fred result fred}
+    {input 0 result 0}
+    {input 7 result 7}
   }
   xproc::testCases $t $cases {{input} {xproc::ReturnCodeToValue $input}}
 }}
@@ -263,29 +263,29 @@ xproc::proc xproc::MakeSummary {tests} {
 } -test {{t} {
   set cases [list \
     [dict create input {} \
-     want [dict create total 0 passed 0 skipped 0 failed 0]] \
+     result [dict create total 0 passed 0 skipped 0 failed 0]] \
     [dict create input {name-1 {skip false fail true}} \
-     want [dict create total 1 passed 0 skipped 0 failed 1]] \
+     result [dict create total 1 passed 0 skipped 0 failed 1]] \
     [dict create input {name-1 {skip false fail false}} \
-     want [dict create total 1 passed 1 skipped 0 failed 0]] \
+     result [dict create total 1 passed 1 skipped 0 failed 0]] \
     [dict create input {name-1 {skip false fail false} \
                         name-2 {skip false fail false}} \
-     want [dict create total 2 passed 2 skipped 0 failed 0]] \
+     result [dict create total 2 passed 2 skipped 0 failed 0]] \
     [dict create input {name-1 {skip false fail true} \
                         name-2 {skip false fail false}} \
-     want [dict create total 2 passed 1 skipped 0 failed 1]] \
+     result [dict create total 2 passed 1 skipped 0 failed 1]] \
     [dict create input {name-1 {skip false fail false} \
                         name-2 {skip false fail true}} \
-     want [dict create total 2 passed 1 skipped 0 failed 1]] \
+     result [dict create total 2 passed 1 skipped 0 failed 1]] \
     [dict create input {name-1 {skip false fail true} \
                         name-2 {skip false fail true}} \
-     want [dict create total 2 passed 0 skipped 0 failed 2]] \
+     result [dict create total 2 passed 0 skipped 0 failed 2]] \
     [dict create input {name-1 {skip true fail false} \
                         name-2 {skip false fail true}} \
-     want [dict create total 2 passed 0 skipped 1 failed 1]] \
+     result [dict create total 2 passed 0 skipped 1 failed 1]] \
     [dict create input {name-1 {skip true fail false} \
                         name-2 {skip true fail false}} \
-     want [dict create total 2 passed 0 skipped 2 failed 0]] \
+     result [dict create total 2 passed 0 skipped 2 failed 0]] \
   ]
   xproc::testCases $t $cases {{input} {xproc::MakeSummary $input}}
 }}
@@ -299,12 +299,12 @@ xproc::proc xproc::MatchProcName {matchPatterns procName} {
   return false
 } -test {{t} {
   set cases {
-    {input {{"*"} someName} want true}
-    {input {{"*bob*" "*"} someName} want true}
-    {input {{"*bob*" "*fred*"} someName} want false}
-    {input {{"*bob*" "*fred*"} somebobName} want true}
-    {input {{"*bob*" "*fred*"} somefredName} want true}
-    {input {{"*bob*" "*fred*"} someharroldName} want false}
+    {input {{"*"} someName} result true}
+    {input {{"*bob*" "*"} someName} result true}
+    {input {{"*bob*" "*fred*"} someName} result false}
+    {input {{"*bob*" "*fred*"} somebobName} result true}
+    {input {{"*bob*" "*fred*"} somefredName} result true}
+    {input {{"*bob*" "*fred*"} someharroldName} result false}
   }
   xproc::testCases $t $cases {{input} {xproc::MatchProcName {*}$input}}
 }}
@@ -355,10 +355,10 @@ xproc::proc xproc::CountIndent {line} {
   return $count
 } -test {{t} {
   set cases {
-    {input {hello this is some text} want 0}
-    {input {  hello this is some text} want 2}
-    {input {  hello this is some text   } want 2}
-    {input {    hello this is some text } want 4}
+    {input {hello this is some text} result 0}
+    {input {  hello this is some text} result 2}
+    {input {  hello this is some text   } result 2}
+    {input {    hello this is some text } result 4}
   }
   xproc::testCases $t $cases {{input} {xproc::CountIndent $input}}
 }}
@@ -380,7 +380,7 @@ xproc::proc xproc::StripIndent {lines numSpaces} {
         " some more text"
         "and a little more"
         "   guess what"
-      } 0} want {
+      } 0} result {
         "hello some text"
         " some more text"
         "and a little more"
@@ -391,7 +391,7 @@ xproc::proc xproc::StripIndent {lines numSpaces} {
         " some more text"
         "and a little more"
         "   guess what"
-      } 1} want {
+      } 1} result {
         "hello some text"
         "some more text"
         "and a little more"
@@ -402,7 +402,7 @@ xproc::proc xproc::StripIndent {lines numSpaces} {
         " some more text"
         "and a little more"
         "   guess what"
-      } 2} want {
+      } 2} result {
         "hello some text"
         "some more text"
         "and a little more"
@@ -413,7 +413,7 @@ xproc::proc xproc::StripIndent {lines numSpaces} {
         " some more text"
         "and a little more"
         "   guess what"
-      } 3} want {
+      } 3} result {
         "hello some text"
         "some more text"
         "and a little more"
@@ -424,12 +424,12 @@ xproc::proc xproc::StripIndent {lines numSpaces} {
   foreach c $cases {
     dict with c {
       set got [xproc::StripIndent {*}$input]
-      if {[llength $got] != [llength $want]} {
-        xproc::testFail $t "($i) got: $got, want: $want"
+      if {[llength $got] != [llength $result]} {
+        xproc::testFail $t "($i) got: $got, want: $result"
       } else {
-        foreach g $got w $want {
+        foreach g $got w $result {
           if {$g ne $w} {
-            xproc::testFail $t "($i) got: $got, want: $want"
+            xproc::testFail $t "($i) got: $got, want: $result"
             break
           }
         }
@@ -457,11 +457,11 @@ xproc::proc xproc::TidyDescription {description} {
 } -test {{t} {
   set cases {
     { input {this is a description}
-      want {this is a description}}
+      result {this is a description}}
     { input {
         this is a description
       }
-      want {this is a description}}
+      result {this is a description}}
     { input {
         this is a description
 
@@ -472,7 +472,7 @@ xproc::proc xproc::TidyDescription {description} {
           as is this line
             even futher down here
       }
-      want {this is a description
+      result {this is a description
 
 this is some more text on another
 line to see if everything is aligned properly
@@ -485,7 +485,7 @@ line to see if everything is aligned properly
         this is some more text on another
         line to see if everything is aligned properly
       }
-      want {this is a description without a leading newline
+      result {this is a description without a leading newline
 
         this is some more text on another
         line to see if everything is aligned properly}}
@@ -517,9 +517,9 @@ xproc::test xproc::proc {{t} {
   # Check errors
   set cases {
     {input {xproc::Dummy-1 {} {} -bob}
-     returnCodes {error} want "unknown option -bob"}
+     returnCodes {error} result "unknown option -bob"}
     {input {xproc::Dummy-2 {} {} bob}
-     returnCodes {error} want "invalid number of arguments"}
+     returnCodes {error} result "invalid number of arguments"}
   }
   xproc::testCases $t $cases {{input} {xproc::proc {*}$input}}
 
@@ -617,7 +617,7 @@ xproc::describe xproc::testCases {
   The cases are a list of dictionaries that describe each test case with
   the following keys:
     input        The value to pass to the lambda
-    want         The value to test against the result of the lambda
+    result       The value to test against the result of the lambda
     returnCodes  Return codes to test against, the default is {ok return}
 
   The lambda has one parameter which is the input for the test case.

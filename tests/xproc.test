@@ -18,16 +18,16 @@ xproc::proc addNums2 {a b} {
     addNums2 7 9      ; # Would return 16
 } -test {{t} {
   set cases {
-    {input {7 9} want 16}
-    {input {2 3} want 18}
-    {input {2 4} want 6}
+    {input {7 9} result 16}
+    {input {2 3} result 18}
+    {input {2 4} result 6}
   }
   set i 0
   foreach c $cases {
     dict with c {
       set got [addNums2 {*}$input]
-      if {$got != $want} {
-        xproc::testFail $t "($i) got: $got, want: $want"
+      if {$got != $result} {
+        xproc::testFail $t "($i) got: $got, want: $result"
       }
     }
     incr i
@@ -44,9 +44,9 @@ xproc::proc addNums3 {a b} {
     addNums3 7 9      ; # Would return 16
 } -test {{t} {
   set cases {
-    {input {7 9} want 15}
-    {input {2 3} want 5}
-    {input {2 4} want 7}
+    {input {7 9} result 15}
+    {input {2 3} result 5}
+    {input {2 4} result 7}
   }
   xproc::testCases $t $cases {{input} {addNums3 {*}$input}}
 }}
@@ -61,9 +61,9 @@ xproc::proc addNums4 {a b} {
     addNums4 7 9      ; # Would return 16
 } -test {{t} {
   set cases {
-    {input {7 9} want 16}
-    {input {2 3} want 5}
-    {input {2 4} want 6}
+    {input {7 9} result 16}
+    {input {2 3} result 5}
+    {input {2 4} result 6}
   }
   xproc::testCases $t $cases {{input} {addNums4 {*}$input}}
 }}
@@ -80,9 +80,9 @@ xproc::describe addNums5 {
 }
 xproc::test addNums5 {{t} {
   set cases {
-    {input {7 9} want 16}
-    {input {2 3} want 18}
-    {input {2 4} want 6}
+    {input {7 9} result 16}
+    {input {2 3} result 18}
+    {input {2 4} result 6}
   }
   xproc::testCases $t $cases {{input} {addNums5 {*}$input}}
 }}
@@ -97,10 +97,10 @@ xproc::proc addNums6 {a b} {
     addNums6 7 9      ; # Would return 16
 } -test {{t} {
   set cases {
-    {input {7 9} want 16}
-    {input {2 3} want 17}
-    {input {2 4} want 4}
-    {input {2 4} want 9}
+    {input {7 9} result 16}
+    {input {2 3} result 17}
+    {input {2 4} result 4}
+    {input {2 4} result 9}
   }
   set i 0
   foreach c $cases {
@@ -109,8 +109,8 @@ xproc::proc addNums6 {a b} {
     }
     dict with c {
       set got [addNums2 {*}$input]
-      if {$got != $want} {
-        xproc::testFail $t "($i) got: $got, want: $want"
+      if {$got != $result} {
+        xproc::testFail $t "($i) got: $got, want: $result"
       }
     }
     incr i
@@ -127,10 +127,10 @@ xproc::proc subNums {a b} {
     subNums 7 9      ; # Would return -2
 } -test {{t} {
   set cases {
-    {input {7 9} want -2}
-    {input {5 4} want 1}
-    {input {2 4} want -2}
-    {input {4 4} want 0}
+    {input {7 9} result -2}
+    {input {5 4} result 1}
+    {input {2 4} result -2}
+    {input {4 4} result 0}
   }
   xproc::testCases $t $cases {{input} {subNums {*}$input}}
 }}
@@ -353,18 +353,17 @@ test runTests-2 {Provide correct test output} -body {
           "error "Time to fail - i: $i""
               (lambda term "{t} !openBrace!
             set cases !openBrace!
-              {input {7 9} want 16}
-              !openBrace!input !openBrace!2 ..." line 11)
+              {input {7 9} result 16}
+              !openBrace!input !openBrace!..." line 11)
               invoked from within
           "apply !openBrace!{t} !openBrace!
             set cases {
-              {input {7 9} want 16}
-              {input {2 3} want 17}
-              {input {2 4} want 4}
-              {input {2 4} want 9}
+              {input {7 9} result 16}
+              {input {2 3} result 17}
+              {input {2 4} result 4}
+              {input {2 4} result 9}
             }
-            set i 0
-            forea..."
+            set i 0..."
               ("uplevel" body line 1)
               invoked from within
           "uplevel 1 [list apply $lambda $procName]"
@@ -429,18 +428,17 @@ test runTests-3 {-verbose 2 should list passing tests} -body {
           "error "Time to fail - i: $i""
               (lambda term "{t} !openBrace!
             set cases !openBrace!
-              {input {7 9} want 16}
-              !openBrace!input !openBrace!2 ..." line 11)
+              {input {7 9} result 16}
+              !openBrace!input !openBrace!..." line 11)
               invoked from within
           "apply !openBrace!{t} !openBrace!
             set cases {
-              {input {7 9} want 16}
-              {input {2 3} want 17}
-              {input {2 4} want 4}
-              {input {2 4} want 9}
+              {input {7 9} result 16}
+              {input {2 3} result 17}
+              {input {2 4} result 4}
+              {input {2 4} result 9}
             }
-            set i 0
-            forea..."
+            set i 0..."
               ("uplevel" body line 1)
               invoked from within
           "uplevel 1 [list apply $lambda $procName]"
