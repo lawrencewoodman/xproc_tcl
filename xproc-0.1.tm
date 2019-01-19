@@ -8,7 +8,6 @@ package require Tcl 8.6
 namespace eval xproc {
   namespace export {[a-z]*}
   variable tests [dict create]
-  variable testFailMessages {}
   variable descriptions [dict create]
 }
 
@@ -105,7 +104,6 @@ proc xproc::describe {procName description} {
 
 proc xproc::runTests {args} {
   variable tests
-  variable testFailMessages
 
   array set options {verbose 1 match {"*"}}
   while {[llength $args]} {
@@ -122,32 +120,32 @@ proc xproc::runTests {args} {
 
   set newTests [
     dict map {procName test} $tests {
-      set testFailMessages {}
       dict set test skip false
+      dict set test fail false
       if {![MatchProcName $options(match) $procName]} {
         dict set test skip true
         if {$options(verbose) >= 2} {
           puts "=== SKIP   $procName"
         }
       } else {
-        set timeStart [clock microseconds]
+        set testRun [TestRun new]
         if {$options(verbose) >= 2} {
           puts "=== RUN   $procName"
         }
+        set timeStart [clock microseconds]
         try {
-          set lambda [dict get $test lambda]
-          uplevel 1 [list apply $lambda $procName]
+          uplevel 1 [list apply [dict get $test lambda] $testRun]
         } on error {result returnOptions} {
           set errorInfo [dict get $returnOptions -errorinfo]
-          lappend testFailMessages $errorInfo
+          fail $testRun $errorInfo
         }
         set secondsElapsed [
           expr {([clock microseconds] - $timeStart)/1000000.}
         ]
-        if {[llength $testFailMessages] > 0} {
+        if {[TestRun hasFailed $testRun]} {
           if {$options(verbose) >= 1} {
             puts [format {--- FAIL  %s (%0.2fs)} $procName $secondsElapsed]
-            foreach msg $testFailMessages {
+            foreach msg [TestRun failMessages $testRun] {
               puts [IndentEachLine $msg 10 0]
             }
           }
@@ -156,8 +154,9 @@ proc xproc::runTests {args} {
             puts [format {--- PASS  %s (%0.2fs)} $procName $secondsElapsed]
           }
         }
+        dict set test fail [TestRun hasFailed $testRun]
       }
-      dict set test fail [expr {[llength $testFailMessages] > 0}]
+      set test
     }
   ]
   set tests $newTests
@@ -171,54 +170,7 @@ proc xproc::runTests {args} {
 }
 
 
-proc xproc::testFail {testState msg} {
-  variable testFailMessages
-  lappend testFailMessages $msg
-}
-
-
-proc xproc::testCases {testState cases lambdaExpr} {
-  set i 0
-  foreach case $cases {
-    set returnCodes {ok return}
-    if {[dict exists $case returnCodes]} {
-      set returnCodes [dict get $case returnCodes]
-    }
-    set returnCodes [lmap code $returnCodes {ReturnCodeToValue $code}]
-    try {
-      set got [uplevel 1 [list apply $lambdaExpr $case]]
-      if {[dict exists $case result]} {
-        set result [dict get $case result]
-        if {$got ne $result} {
-          xproc::testFail $testState "($i) got: $got, want: $result"
-        }
-      }
-    } on error {got returnOptions} {
-      if {[dict exists $case result]} {
-        set result [dict get $case result]
-        if {$got ne $result} {
-          xproc::testFail $testState "($i) got: $got, want: $result"
-        }
-      }
-      set returnCode [dict get $returnOptions -code]
-      set wantCodeFound false
-      foreach wantCode $returnCodes {
-        if {$returnCode == $wantCode} {
-          set wantCodeFound true
-          break
-        }
-      }
-      if {!$wantCodeFound} {
-        xproc::testFail $testState \
-            "($i) got return code: $returnCode, want one of: $returnCodes"
-      }
-    }
-    incr i
-  }
-}
-
-
-xproc::proc xproc::descriptions {args} {
+proc xproc::descriptions {args} {
   variable descriptions
   array set options {match {"*"}}
   while {[llength $args]} {
@@ -236,6 +188,90 @@ xproc::proc xproc::descriptions {args} {
     MatchProcName $options(match) $procName
   }
 }
+
+
+proc xproc::testCases {testRun cases lambda} {
+  set i 0
+  foreach case $cases {
+    set returnCodes {ok return}
+    if {[dict exists $case returnCodes]} {
+      set returnCodes [dict get $case returnCodes]
+    }
+    set returnCodes [lmap code $returnCodes {ReturnCodeToValue $code}]
+    try {
+      set got [uplevel 1 [list apply $lambda $case]]
+      if {[dict exists $case result]} {
+        set result [dict get $case result]
+        if {$got ne $result} {
+          fail $testRun "($i) got: $got, want: $result"
+        }
+      }
+    } on error {got returnOptions} {
+      if {[dict exists $case result]} {
+        set result [dict get $case result]
+        if {$got ne $result} {
+          fail $testRun "($i) got: $got, want: $result"
+        }
+      } else {
+        fail $testRun "($i) $got"
+      }
+      set returnCode [dict get $returnOptions -code]
+      set wantCodeFound false
+      foreach wantCode $returnCodes {
+        if {$returnCode == $wantCode} {
+          set wantCodeFound true
+          break
+        }
+      }
+      if {!$wantCodeFound} {
+        fail $testRun \
+            "($i) got return code: $returnCode, want one of: $returnCodes"
+      }
+    }
+    incr i
+  }
+}
+
+
+proc xproc::fail {testRun msg} {
+  TestRun fail $testRun $msg
+}
+
+
+
+namespace eval xproc::TestRun {
+  namespace export {[a-z]*}
+  namespace ensemble create
+  variable runs
+  variable n
+}
+
+proc xproc::TestRun::new {} {
+  variable runs
+  variable n
+  dict set runs [incr n] [dict create failMessages {}]
+  return $n
+}
+
+
+proc xproc::TestRun::fail {testRun msg} {
+  variable runs
+  set oldFailMessages [dict get $runs $testRun failMessages]
+  dict set runs $testRun failMessages [list {*}$oldFailMessages $msg]
+}
+
+
+proc xproc::TestRun::failMessages {testRun} {
+  variable runs
+  return [dict get $runs $testRun failMessages]
+}
+
+
+proc xproc::TestRun::hasFailed {testRun} {
+  variable runs
+  return [expr {[llength [dict get $runs $testRun failMessages]] > 0}]
+}
+
 
 
 xproc::proc xproc::ReturnCodeToValue {code} {
@@ -259,6 +295,7 @@ xproc::proc xproc::ReturnCodeToValue {code} {
     dict with case {xproc::ReturnCodeToValue $input}
   }}
 }}
+
 
 
 xproc::proc xproc::MakeSummary {tests} {
@@ -354,7 +391,7 @@ and some more here
            and a little less indented}
   set got [xproc::IndentEachLine $text 10 1]
   if {$got ne $want} {
-    xproc::testFail $t "got: $got, want: $want"
+    xproc::fail $t "got: $got, want: $want"
   }
 }}
 
@@ -443,11 +480,11 @@ xproc::proc xproc::StripIndent {lines numSpaces} {
     dict with c {
       set got [xproc::StripIndent {*}$input]
       if {[llength $got] != [llength $result]} {
-        xproc::testFail $t "($i) got: $got, want: $result"
+        xproc::fail $t "($i) got: $got, want: $result"
       } else {
         foreach g $got w $result {
           if {$g ne $w} {
-            xproc::testFail $t "($i) got: $got, want: $result"
+            xproc::fail $t "($i) got: $got, want: $result"
             break
           }
         }
@@ -530,7 +567,7 @@ xproc::describe xproc::proc {
     -description description   Records the given description
     -test lambda               Records the given lambda to be used
                                to test this procedure.  The lambda has
-                               one parameter which is the testState.
+                               one parameter which is the testRun.
 }
 
 xproc::test xproc::proc {{t} {
@@ -546,7 +583,7 @@ xproc::test xproc::proc {{t} {
               set got [xproc::Dummy-3 2 3]
               set want 5
               if {$got != $want} {
-                xproc::testFail $t "got: $got, want: $want"
+                xproc::fail $t "got: $got, want: $want"
               }
             }} -description {Add two numbers together}}
      passed 1 failed 0 minTotal 5 maxTotal 50}
@@ -563,12 +600,12 @@ xproc::test xproc::proc {{t} {
         dict with gotSummary {
           if {$passed != $passed || $failed != $failed ||
               $total <= $minTotal || $total >= $maxTotal} {
-            xproc::testFail $t "summary incorrect - got: $gotSummary"
+            return -code error "summary incorrect - got: $gotSummary"
           }
         }
         set gotDescriptions [xproc::descriptions -match {::xproc::Dummy-*}]
         if {$gotDescriptions ne $wantDescriptions} {
-          xproc::testFail $t \
+          return -code error \
               "descriptions - got: $gotDescriptions, want: $wantDescriptions"
         }
       }
@@ -604,7 +641,7 @@ xproc::test xproc::remove {{t} {
      returnCodes {error} result "unknown type: bob"}
   }
   xproc::testCases $t $cases {{case} {
-    dict with case {xproc::proc {*}$input}
+    dict with case {xproc::remove {*}$input}
   }}
 
   try {
@@ -615,7 +652,7 @@ xproc::test xproc::remove {{t} {
         set got [xproc::Dummy-3 2 3]
         set want 5
         if {$got != $want} {
-          xproc::testFail $t "got: $got, want: $want"
+          xproc::fail $t "got: $got, want: $want"
         }
       }} -description {Add two numbers together}
     }
@@ -623,7 +660,7 @@ xproc::test xproc::remove {{t} {
     set gotSummary [xproc::runTests -match {::xproc::Dummy-*} -verbose 0]
     dict with gotSummary {
       if {$passed != 2 || $failed != 0 || $total < 5 || $total > 100} {
-        xproc::testFail $t "after remove tests Dummy-2 - summary incorrect - got: $gotSummary"
+        $t fail "after remove tests Dummy-2 - summary incorrect - got: $gotSummary"
       }
     }
     xproc::remove descriptions -match {*Dummy-3}
@@ -631,20 +668,21 @@ xproc::test xproc::remove {{t} {
     set gotDescriptionProcNames [dict keys $gotDescriptions]
     set wantDescriptionProcNames {::xproc::Dummy-1 ::xproc::Dummy-2}
     if {$gotDescriptionProcNames ne $wantDescriptionProcNames} {
-      xproc::testFail $t \
+      xproc::fail $t \
           "after remove descriptions Dummy-3 - descriptions - got keys: $gotDescriptionProcNames, want: $wantDescriptionProcNames"
     }
     xproc::remove all -match {::xproc::Dummy-*}
     set gotSummary [xproc::runTests -match {::xproc::Dummy-*} -verbose 0]
     dict with gotSummary {
       if {$passed != 0 || $failed != 0 || $total < 5 || $total > 100} {
-        xproc::testFail $t "after remove all Dummy-* - summary incorrect - got: $gotSummary"
+        xproc::fail $t
+            "after remove all Dummy-* - summary incorrect - got: $gotSummary"
       }
     }
     set gotDescriptions [xproc::descriptions -match {::xproc::Dummy-*}]
     set gotDescriptionProcNames [dict keys $gotDescriptions]
     if {[llength $gotDescriptionProcNames] != 0} {
-      xproc::testFail $t \
+      xproc::fail $t \
           "after remove descriptions all Dummy-* descriptions - got keys: $gotDescriptionProcNames, want: $wantDescriptionProcNames"
     }
   } finally {
@@ -656,12 +694,40 @@ xproc::test xproc::remove {{t} {
 }}
 
 
+xproc::describe xproc::testCases {
+  Test the supplied test cases within a test lambda
+
+  xproc::testCases testRun cases lambda
+
+  The testRun is passed through a test lambda defined with xproc::test
+  or using -test with xproc::proc.
+
+  The cases are a list of dictionaries that describe each test case with
+  the following keys:
+    input        The value to pass to the lambda
+    result       The value to test against the result of the lambda
+    returnCodes  Return codes to test against, the default is {ok return}
+  Extra keys may be present and therefore passed to the lambda.
+
+  The lambda has one parameter which is the test case.
+}
+
+
+xproc::describe xproc::fail {
+  Output a FAIL message and record that test has failed
+
+  xproc::fail testRun msg
+
+  This is to be called within a test lambda.
+}
+
+
 xproc::describe xproc::test {
   Record the given lambda to test a procedure
 
   xproc::test procedureName lambda
 
-  The lambda has one parameter which is the testState
+  The lambda has one parameter which is the testRun
 }
 
 xproc::test xproc::test {{t} {
@@ -709,30 +775,6 @@ xproc::describe xproc::runTests {
                           patternList, the default is {"*"}
 }
 
-xproc::describe xproc::testFail {
-  Output a FAIL message and record that test has failed
-
-  xproc::testFail procedureName msg
-}
-
-
-xproc::describe xproc::testCases {
-  Test the supplied test cases within a test lambda
-
-  xproc::testCases testState cases lambda
-
-  The testState is passed through a test lambda defined with xproc::test
-  or using -test with xproc::proc.
-
-  The cases are a list of dictionaries that describe each test case with
-  the following keys:
-    input        The value to pass to the lambda
-    result       The value to test against the result of the lambda
-    returnCodes  Return codes to test against, the default is {ok return}
-  Extra keys may be present and therefore passed to the lambda.
-
-  The lambda has one parameter which is the test case.
-}
 
 xproc::describe xproc::descriptions {
   Return the descriptions recorded using xproc
@@ -746,17 +788,18 @@ xproc::describe xproc::descriptions {
 
 xproc::test xproc::descriptions {{t} {
   set cases {
-    {input {-match {*xproc::testCases *xproc::testFail}}
-     result {1} minNum 2 maxNum 2}
-    {input {-match {*xproc*}}
-     result {1} minNum 5 maxNum 100}
-    {input {} result {1} minNum 5 maxNum 25}
+    {input {-match {*xproc::descriptions *xproc::test}} minNum 2 maxNum 2}
+    {input {-match {*xproc*}} minNum 5 maxNum 100}
+    {input {} minNum 5 maxNum 25}
   }
   xproc::testCases $t $cases {{case} {
     dict with case {
       set got [xproc::descriptions {*}$input]
       set numGot [dict size $got]
-      return [expr {$numGot >= $minNum && $numGot <= $maxNum}]
+      if {$numGot < $minNum || $numGot > $maxNum} {
+        return -code error \
+            "got num descriptions: $numGot, want >= $minNum && <= $maxNum"
+      }
     }
   }}
 }}
