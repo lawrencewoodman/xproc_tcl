@@ -105,9 +105,10 @@ proc xproc::describe {procName description} {
 proc xproc::runTests {args} {
   variable tests
 
-  array set options {verbose 1 match {"*"}}
+  array set options {channel stdout match {"*"} verbose 1}
   while {[llength $args]} {
     switch -glob -- [lindex $args 0] {
+      -channel {set args [lassign $args - options(channel)]}
       -match {set args [lassign $args - options(match)]}
       -verbose {set args [lassign $args - options(verbose)]}
       -*      {return -code error "unknown option: [lindex $args 0]"}
@@ -125,12 +126,12 @@ proc xproc::runTests {args} {
       if {![MatchProcName $options(match) $procName]} {
         dict set test skip true
         if {$options(verbose) >= 2} {
-          puts "=== SKIP   $procName"
+          puts $options(channel) "=== SKIP   $procName"
         }
       } else {
         set testRun [TestRun new]
         if {$options(verbose) >= 2} {
-          puts "=== RUN   $procName"
+          puts $options(channel) "=== RUN   $procName"
         }
         set timeStart [clock microseconds]
         try {
@@ -144,14 +145,18 @@ proc xproc::runTests {args} {
         ]
         if {[TestRun hasFailed $testRun]} {
           if {$options(verbose) >= 1} {
-            puts [format {--- FAIL  %s (%0.2fs)} $procName $secondsElapsed]
+            puts $options(channel) [
+              format {--- FAIL  %s (%0.2fs)} $procName $secondsElapsed
+            ]
             foreach msg [TestRun failMessages $testRun] {
-              puts [IndentEachLine $msg 10 0]
+              puts $options(channel) [IndentEachLine $msg 10 0]
             }
           }
         } else {
           if {$options(verbose) >= 2} {
-            puts [format {--- PASS  %s (%0.2fs)} $procName $secondsElapsed]
+            puts $options(channel) [
+              format {--- PASS  %s (%0.2fs)} $procName $secondsElapsed
+            ]
           }
         }
         dict set test fail [TestRun hasFailed $testRun]
@@ -163,7 +168,8 @@ proc xproc::runTests {args} {
   set summary [MakeSummary $newTests]
   if {$options(verbose) >= 1} {
     dict with summary {
-      puts "\nTotal: $total,  Passed: $passed,  Skipped: $skipped,  Failed: $failed"
+      puts $options(channel) \
+      "\nTotal: $total,  Passed: $passed,  Skipped: $skipped,  Failed: $failed"
     }
   }
   return $summary
@@ -185,6 +191,26 @@ proc xproc::descriptions {args} {
   }
 
   dict filter $descriptions script {procName description} {
+    MatchProcName $options(match) $procName
+  }
+}
+
+
+proc xproc::tests {args} {
+  variable tests
+  array set options {match {"*"}}
+  while {[llength $args]} {
+    switch -glob -- [lindex $args 0] {
+      -match {set args [lassign $args - options(match)]}
+      -*      {return -code error "unknown option: [lindex $args 0]"}
+      default break
+    }
+  }
+  if {[llength $args] > 0} {
+    return -code error "invalid number of arguments"
+  }
+
+  dict filter $tests script {procName lambda} {
     MatchProcName $options(match) $procName
   }
 }
@@ -272,6 +298,51 @@ proc xproc::TestRun::hasFailed {testRun} {
   return [expr {[llength [dict get $runs $testRun failMessages]] > 0}]
 }
 
+
+# This is used to capture the output of a channel
+namespace eval xproc::ChannelMonitor {
+  namespace export {[a-z]*}
+  namespace ensemble create
+  variable channels
+}
+
+proc xproc::ChannelMonitor::new {} {
+  variable channels
+  return [chan create {write} [namespace which -command xproc::ChannelMonitor]]
+}
+
+proc xproc::ChannelMonitor::initialize {channelID mode} {
+  variable channels
+  if {"read" in $mode} {
+    return -code error "unsupported mode: read"
+  }
+  dict set channels $channelID [
+    dict create writeData {} finalized false
+  ]
+  return {initialize finalize watch write}
+}
+
+proc xproc::ChannelMonitor::finalize {channelID} {
+  variable channels
+  dict unset channels $channelID
+}
+
+proc xproc::ChannelMonitor::watch {channelID eventSpec} {
+}
+
+proc xproc::ChannelMonitor::write {channelID data} {
+  variable channels
+  set channelWriteData [dict get $channels $channelID writeData]
+  append channelWriteData $data
+  dict set channels $channelID writeData $channelWriteData
+  return [string bytelength $data]
+}
+
+proc xproc::ChannelMonitor::getWriteData {channelID} {
+  variable channels
+  flush $channelID
+  return [dict get $channels $channelID writeData]
+}
 
 
 xproc::proc xproc::ReturnCodeToValue {code} {
@@ -365,6 +436,7 @@ xproc::proc xproc::MatchProcName {matchPatterns procName} {
 
 xproc::proc xproc::IndentEachLine {text numSpaces ignoreLines} {
   set lines [split $text "\n"]
+  set indentedLines {}
   set i 0
   foreach line $lines {
     if {$i < $ignoreLines || $line eq ""} {
@@ -766,14 +838,49 @@ xproc::describe xproc::runTests {
   xproc::runTests ?-verbose? ?-match patternList?
 
   The switches do the following:
+    -channel channelID    A channel to send output to. The default is stdout.
+    -match patternList    Matches procedureNames against patterns in
+                          patternList, the default is {"*"}
     -verbose level        Controls the level of output to stdout:
                             0  None
                             1  Summary and failing tests
                             2  Summary and all tests
                           The default is 1
-    -match patternList    Matches procedureNames against patterns in
-                          patternList, the default is {"*"}
 }
+
+xproc::test xproc::runTests {{t} {
+  set ch [xproc::ChannelMonitor new]
+  # Run all the tests except this one to prevent an infinite loop
+  set tests [
+    dict filter [xproc::tests -match {*xproc::*}] script {k v} {
+      expr {![string match "*xproc::runTests" $k]}
+    }
+  ]
+  set procNames [dict keys $tests]
+  set summary [xproc::runTests -verbose 1 -channel $ch -match $procNames]
+  dict with summary {
+    set wantTotal [expr {$passed+$failed+$skipped}]
+    if {$total != $wantTotal} {
+      xproc::fail $t "got total: $total, want: $wantTotal"
+    }
+    if {$passed < 5 || $passed > 50} {
+      xproc::fail $t "got passed: $passed, want: passed >= 5 && passed <= 50"
+    }
+    if {$skipped < 1 || $skipped > 50} {
+      xproc::fail $t \
+          "got skipped: $skipped, want: skipped >= 1 && skipped <= 50"
+    }
+    if {$failed != 0} {xproc::fail $t "got failed: $failed, want: 0"}
+  }
+
+  set wantChannelOutput "\nTotal: \\d\\d,  Passed: 13,  Skipped: 12,  Failed: 0\n"
+  set channelOutput [xproc::ChannelMonitor getWriteData $ch]
+  if {![regexp $wantChannelOutput $channelOutput]} {
+    xproc::fail $t \
+        "got channelOutput: $channelOutput, want: $wantChannelOutput"
+  }
+  close $ch
+}}
 
 
 xproc::describe xproc::descriptions {
@@ -784,6 +891,9 @@ xproc::describe xproc::descriptions {
   There is one switch:
     -match patternList    Matches procedureNames against patterns in
                           patternList, the default is {"*"}
+
+  The return value is a dictionary with the procedureNames as the
+  key and the description as the value.
 }
 
 xproc::test xproc::descriptions {{t} {
@@ -799,6 +909,38 @@ xproc::test xproc::descriptions {{t} {
       if {$numGot < $minNum || $numGot > $maxNum} {
         return -code error \
             "got num descriptions: $numGot, want >= $minNum && <= $maxNum"
+      }
+    }
+  }}
+}}
+
+
+xproc::describe xproc::tests {
+  Return the tests recorded using xproc
+
+  xproc::tests ?-match patternList?
+
+  There is one switch:
+    -match patternList    Matches procedureNames against patterns in
+                          patternList, the default is {"*"}
+
+  The return value is a dictionary with the procedureNames as the
+  key.
+}
+
+xproc::test xproc::tests {{t} {
+  set cases {
+    {input {-match {*xproc::tests *xproc::test}} minNum 2 maxNum 2}
+    {input {-match {*xproc*}} minNum 5 maxNum 100}
+    {input {} minNum 5 maxNum 25}
+  }
+  xproc::testCases $t $cases {{case} {
+    dict with case {
+      set got [xproc::tests {*}$input]
+      set numGot [dict size $got]
+      if {$numGot < $minNum || $numGot > $maxNum} {
+        return -code error \
+            "got num tests: $numGot, want >= $minNum && <= $maxNum"
       }
     }
   }}

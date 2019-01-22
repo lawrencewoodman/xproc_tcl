@@ -272,12 +272,12 @@ xproc::proc waitMSFail {ms} {
 }}
 
 test runTests-1 {Test ::xproc::test tests} -body {
-  xproc::runTests -verbose 1 -match {*xproc*}
+  xproc::runTests -match {*xproc*}
 } -cleanup {
   xproc::remove tests -match {*xproc*}
 } -output {
-Total: 23,  Passed: 12,  Skipped: 11,  Failed: 0
-} -result {total 23 passed 12 skipped 11 failed 0}
+Total: 25,  Passed: 14,  Skipped: 11,  Failed: 0
+} -result {total 25 passed 14 skipped 11 failed 0}
 
 
 test runTests-2 {Ensure timings work} -body {
@@ -371,7 +371,7 @@ test runTests-3 {Provide correct fail output with errors} -setup {
               invoked from within
           "apply {{t} {
               raiseErrorCmd 4 5
-            }} 18"
+            }} 36"
               ("uplevel" body line 1)
               invoked from within
           "uplevel 1 [list apply [dict get $test lambda] $testRun]"
@@ -482,7 +482,7 @@ test descriptions-1 {Ensure there is a description for each exported xproc comma
   list $numXprocExportedCommands $numXprocDescriptions
 } -cleanup {
   xproc::remove descriptions -match {*xproc*}
-} -result {8 8}
+} -result {9 9}
 
 
 test descriptions-2 {Return descriptions} -body {
