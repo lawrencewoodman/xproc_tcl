@@ -296,51 +296,9 @@ proc xproc::TestRun::hasFailed {testRun} {
 }
 
 
-# This is used to capture the output of a channel
-namespace eval xproc::ChannelMonitor {
-  namespace export {[a-z]*}
-  namespace ensemble create
-  variable channels
-}
-
-proc xproc::ChannelMonitor::new {} {
-  variable channels
-  return [chan create {write} [namespace which -command xproc::ChannelMonitor]]
-}
-
-proc xproc::ChannelMonitor::initialize {channelID mode} {
-  variable channels
-  if {"read" in $mode} {
-    return -code error "unsupported mode: read"
-  }
-  dict set channels $channelID [
-    dict create writeData {} finalized false
-  ]
-  return {initialize finalize watch write}
-}
-
-proc xproc::ChannelMonitor::finalize {channelID} {
-  variable channels
-  dict unset channels $channelID
-}
-
-proc xproc::ChannelMonitor::watch {channelID eventSpec} {
-}
-
-proc xproc::ChannelMonitor::write {channelID data} {
-  variable channels
-  set channelWriteData [dict get $channels $channelID writeData]
-  append channelWriteData $data
-  dict set channels $channelID writeData $channelWriteData
-  return [string bytelength $data]
-}
-
-proc xproc::ChannelMonitor::getWriteData {channelID} {
-  variable channels
-  flush $channelID
-  return [dict get $channels $channelID writeData]
-}
-
+###########################
+# Unexported commands
+###########################
 
 xproc::proc xproc::ReturnCodeToValue {code} {
   set returnCodeValues {ok 0 error 1 return 2 break 3 continue 4}
@@ -363,7 +321,6 @@ xproc::proc xproc::ReturnCodeToValue {code} {
     dict with case {xproc::ReturnCodeToValue $input}
   }}
 }}
-
 
 
 xproc::proc xproc::MakeSummary {tests} {

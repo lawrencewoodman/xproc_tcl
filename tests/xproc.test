@@ -6,6 +6,8 @@ set ThisScriptDir [file dirname [info script]]
 set ModuleDir [file normalize [file join $ThisScriptDir ..]]
 ::tcl::tm::path add $ModuleDir
 
+source [file join $ThisScriptDir test_helpers.tcl]
+
 package require xproc
 
 
@@ -135,7 +137,7 @@ xproc::test xproc::test {{t} {
 
 
 xproc::test xproc::runTests {{t} {
-  set ch [xproc::ChannelMonitor new]
+  set ch [TestHelpers::ChannelMonitor new]
   # Run all the tests except this one to prevent an infinite loop
   set tests [
     dict filter [xproc::tests -match {*xproc::*}] script {k v} {
@@ -159,7 +161,7 @@ xproc::test xproc::runTests {{t} {
   }
 
   set wantChannelOutput "\nTotal: \\d+,  Passed: \\d+,  Skipped: 1,  Failed: 0\n"
-  set channelOutput [xproc::ChannelMonitor getWriteData $ch]
+  set channelOutput [TestHelpers::ChannelMonitor getWriteData $ch]
   if {![regexp $wantChannelOutput $channelOutput]} {
     xproc::fail $t \
         "got channelOutput: $channelOutput, want: $wantChannelOutput"

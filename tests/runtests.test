@@ -6,6 +6,8 @@ set ThisScriptDir [file dirname [info script]]
 set ModuleDir [file normalize [file join $ThisScriptDir ..]]
 ::tcl::tm::path add $ModuleDir
 
+source [file join $ThisScriptDir test_helpers.tcl]
+
 package require xproc
 xproc::remove tests -match {*::xproc*}
 
@@ -347,14 +349,14 @@ test runTests-3 {Provide correct fail output with errors} -setup {
       }
     }}
   }}
-  set ch [xproc::ChannelMonitor new]
+  set ch [TestHelpers::ChannelMonitor new]
 } -body {
   set summary [
     xproc::runTests -channel $ch -match {
       ::raiseErrorCmd ::addNumsInT* ::subNumsTe*
     }
   ]
-  set channelOutput [xproc::ChannelMonitor getWriteData $ch]
+  set channelOutput [TestHelpers::ChannelMonitor getWriteData $ch]
   set lines [split $channelOutput "\n"]
   set captureMore false
   set captureLines {}
