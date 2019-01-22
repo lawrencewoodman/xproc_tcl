@@ -8,523 +8,219 @@ set ModuleDir [file normalize [file join $ThisScriptDir ..]]
 
 package require xproc
 
-xproc::proc addNums2 {a b} {
-  expr {$a+$b}
-} -description {
-  Add two numbers together and return the result
 
-  This could work as follows:
-    addNums2 7 9      ; # Would return 16
-} -test {{t} {
+################################
+# tcltest is at bottom of file
+################################
+
+
+xproc::test xproc::proc {{t} {
+  # Check errors
   set cases {
-    {input {7 9} result 16}
-    {input {2 3} result 18}
-    {input {2 4} result 6}
+    {input {xproc::Dummy-1 {} {} -bob}
+     returnCodes {error} result "unknown option: -bob"}
+    {input {xproc::Dummy-2 {} {} bob}
+     returnCodes {error} result "invalid number of arguments"}
+    {input {xproc::Dummy-3 {a b} {
+              expr {$a+$b}
+            } -test {{t} {
+              set got [xproc::Dummy-3 2 3]
+              set want 5
+              if {$got != $want} {
+                xproc::fail $t "got: $got, want: $want"
+              }
+            }} -description {Add two numbers together}}
+     passed 1 failed 0 minTotal 5 maxTotal 50}
+
   }
-  set i 0
-  foreach c $cases {
-    dict with c {
-      set got [addNums2 {*}$input]
-      if {$got != $result} {
-        xproc::fail $t "($i) got: $got, want: $result"
+  xproc::testCases $t $cases {{case} {
+    try {
+      dict with case {
+        xproc::proc {*}$input
+        set gotSummary [xproc::runTests -match {::xproc::Dummy-*} -verbose 0]
+        set wantDescriptions [
+          dict create ::xproc::Dummy-3 {Add two numbers together}
+        ]
+        dict with gotSummary {
+          if {$passed != $passed || $failed != $failed ||
+              $total <= $minTotal || $total >= $maxTotal} {
+            return -code error "summary incorrect - got: $gotSummary"
+          }
+        }
+        set gotDescriptions [xproc::descriptions -match {::xproc::Dummy-*}]
+        if {$gotDescriptions ne $wantDescriptions} {
+          return -code error \
+              "descriptions - got: $gotDescriptions, want: $wantDescriptions"
+        }
+      }
+    } finally {
+      xproc::remove all -match {::xproc::Dummy-*}
+      catch {rename xproc::[lindex $input 0] ""}
+    }
+  }}
+}}
+
+
+xproc::test xproc::remove {{t} {
+  # Check errors
+  set cases {
+    {input {all -fred}
+     returnCodes {error} result "unknown option: -fred"}
+    {input {bob}
+     returnCodes {error} result "unknown type: bob"}
+  }
+  xproc::testCases $t $cases {{case} {
+    dict with case {xproc::remove {*}$input}
+  }}
+
+  try {
+    for {set n 1} {$n <= 3} {incr n} {
+      xproc::proc xproc::Dummy-$n {a b} {
+        expr {$a+$b}
+      } -test {{t} {
+        set got [xproc::Dummy-3 2 3]
+        set want 5
+        if {$got != $want} {
+          xproc::fail $t "got: $got, want: $want"
+        }
+      }} -description {Add two numbers together}
+    }
+    xproc::remove tests -match {*Dummy-2}
+    set gotSummary [xproc::runTests -match {::xproc::Dummy-*} -verbose 0]
+    dict with gotSummary {
+      if {$passed != 2 || $failed != 0 || $total < 5 || $total > 100} {
+        $t fail "after remove tests Dummy-2 - summary incorrect - got: $gotSummary"
       }
     }
-    incr i
+    xproc::remove descriptions -match {*Dummy-3}
+    set gotDescriptions [xproc::descriptions -match {::xproc::Dummy-*}]
+    set gotDescriptionProcNames [dict keys $gotDescriptions]
+    set wantDescriptionProcNames {::xproc::Dummy-1 ::xproc::Dummy-2}
+    if {$gotDescriptionProcNames ne $wantDescriptionProcNames} {
+      xproc::fail $t \
+          "after remove descriptions Dummy-3 - descriptions - got keys: $gotDescriptionProcNames, want: $wantDescriptionProcNames"
+    }
+    xproc::remove all -match {::xproc::Dummy-*}
+    set gotSummary [xproc::runTests -match {::xproc::Dummy-*} -verbose 0]
+    dict with gotSummary {
+      if {$passed != 0 || $failed != 0 || $total < 5 || $total > 100} {
+        xproc::fail $t
+            "after remove all Dummy-* - summary incorrect - got: $gotSummary"
+      }
+    }
+    set gotDescriptions [xproc::descriptions -match {::xproc::Dummy-*}]
+    set gotDescriptionProcNames [dict keys $gotDescriptions]
+    if {[llength $gotDescriptionProcNames] != 0} {
+      xproc::fail $t \
+          "after remove descriptions all Dummy-* descriptions - got keys: $gotDescriptionProcNames, want: $wantDescriptionProcNames"
+    }
+  } finally {
+    xproc::remove all -match {::xproc::Dummy-*}
+    rename xproc::Dummy-1 ""
+    rename xproc::Dummy-2 ""
+    rename xproc::Dummy-3 ""
   }
 }}
 
-
-xproc::proc addNums3 {a b} {
-  expr {$a+$b}
-} -description {
-  Add two numbers together and return the result
-
-  This could work as follows:
-    addNums3 7 9      ; # Would return 16
-} -test {{t} {
+xproc::test xproc::test {{t} {
   set cases {
-    {input {7 9} result 15}
-    {input {2 3} result 5}
-    {input {2 4} result 7}
+    {input {DummyNotExist {{t} {}}}
+     returnCodes {error}
+     result {procedureName doesn't exist: DummyNotExist}}
   }
   xproc::testCases $t $cases {{case} {
-    dict with case {addNums3 {*}$input}
+    dict with case {xproc::test {*}$input}
   }}
 }}
 
 
-xproc::proc addNums4 {a b} {
-  expr {$a+$b}
-} -description {
-  Add two numbers together and return the result
+xproc::test xproc::runTests {{t} {
+  set ch [xproc::ChannelMonitor new]
+  # Run all the tests except this one to prevent an infinite loop
+  set tests [
+    dict filter [xproc::tests -match {*xproc::*}] script {k v} {
+      expr {![string match "*xproc::runTests" $k]}
+    }
+  ]
+  set procNames [dict keys $tests]
+  set summary [xproc::runTests -verbose 1 -channel $ch -match $procNames]
+  dict with summary {
+    set wantTotal [expr {$passed+$failed+$skipped}]
+    if {$total != $wantTotal} {
+      xproc::fail $t "got total: $total, want: $wantTotal"
+    }
+    if {$passed < 5} {
+      xproc::fail $t "got passed: $passed, want: passed >= 5"
+    }
+    if {$skipped < 1} {
+      xproc::fail $t "got skipped: $skipped, want: skipped >= 1"
+    }
+    if {$failed != 0} {xproc::fail $t "got failed: $failed, want: 0"}
+  }
 
-  This could work as follows:
-    addNums4 7 9      ; # Would return 16
-} -test {{t} {
+  set wantChannelOutput "\nTotal: \\d+,  Passed: \\d+,  Skipped: 1,  Failed: 0\n"
+  set channelOutput [xproc::ChannelMonitor getWriteData $ch]
+  if {![regexp $wantChannelOutput $channelOutput]} {
+    xproc::fail $t \
+        "got channelOutput: $channelOutput, want: $wantChannelOutput"
+  }
+  close $ch
+}}
+
+xproc::test xproc::descriptions {{t} {
   set cases {
-    {input {7 9} result 16}
-    {input {2 3} result 5}
-    {input {2 4} result 6}
+    {input {-match {*xproc::descriptions *xproc::test}} minNum 2 maxNum 2}
+    {input {-match {*xproc*}} minNum 5 maxNum 100}
+    {input {} minNum 5 maxNum 25}
   }
   xproc::testCases $t $cases {{case} {
-    dict with case {addNums4 {*}$input}
+    dict with case {
+      set got [xproc::descriptions {*}$input]
+      set numGot [dict size $got]
+      if {$numGot < $minNum || $numGot > $maxNum} {
+        return -code error \
+            "got num descriptions: $numGot, want >= $minNum && <= $maxNum"
+      }
+    }
   }}
 }}
 
 
-proc addNums5 {a b} {
-  expr {$a+$b}
-}
-xproc::describe addNums5 {
-  Add two numbers together and return the result
-
-  This could work as follows:
-    addNums5 7 9      ; # Would return 16
-}
-xproc::test addNums5 {{t} {
+xproc::test xproc::describe {{t} {
   set cases {
-    {input {7 9} result 16}
-    {input {2 3} result 18}
-    {input {2 4} result 6}
+    {input {DummyNotExist {{t} {}}}
+     returnCodes {error}
+     result {procedureName doesn't exist: DummyNotExist}}
   }
   xproc::testCases $t $cases {{case} {
-    dict with case {addNums5 {*}$input}
+    dict with case {xproc::describe {*}$input}
   }}
 }}
 
 
-xproc::proc subNums {a b} {
-  expr {$a-$b}
-} -description {
-  Subtract one number from another and return the result
-
-  This could work as follows:
-    subNums 7 9      ; # Would return -2
-} -test {{t} {
+xproc::test xproc::tests {{t} {
   set cases {
-    {input {7 9} result -2}
-    {input {5 4} result 1}
-    {input {2 4} result -2}
-    {input {4 4} result 0}
+    {input {-match {*xproc::tests *xproc::test}} minNum 2 maxNum 2}
+    {input {-match {*xproc*}} minNum 5 maxNum 100}
+    {input {} minNum 5 maxNum 25}
   }
   xproc::testCases $t $cases {{case} {
-    dict with case {subNums {*}$input}
+    dict with case {
+      set got [xproc::tests {*}$input]
+      set numGot [dict size $got]
+      if {$numGot < $minNum || $numGot > $maxNum} {
+        return -code error \
+            "got num tests: $numGot, want >= $minNum && <= $maxNum"
+      }
+    }
   }}
 }}
 
-
-namespace eval aTestNamespace {
-  xproc::proc cmdA {} {
-    return "defined inside eval aTestNamespace"
-  } -description {
-    this is a description of cmdA
-  } -test {{t} {
-    set got [cmdA]
-    set want "defined inside eval aTestNamespace"
-    if {$got ne $want} {
-      xproc::fail $t  "got: $got, want: $want"
-    }
-  } aTestNamespace}
-}
-
-xproc::proc aTestNamespace::cmdB {} {
-  return "defined outside eval aTestNamespace"
-} -description {
-  this is a description of cmdB
-} -test {{t} {
-  set got [aTestNamespace::cmdB]
-  set want "defined outside eval aTestNamespace"
-  if {$got ne $want} {
-    xproc::fail $t  "got: $got, want: $want"
-  }
-}}
-
-
-xproc::proc ::aTestNamespace::cmdC {} {
-  return "defined outside eval aTestNamespace"
-} -description {
-  this is a description of cmdC
-} -test {{t} {
-  set got [aTestNamespace::cmdC]
-  set want "defined outside eval aTestNamespace"
-  if {$got ne $want} {
-    xproc::fail $t  "got: $got, want: $want"
-  }
-}}
-
-
-# This shouldn't appear in tests or descriptions because is removed in both
-namespace eval bTestNamespace {
-  xproc::proc cmdA {} {
-    return "defined inside eval bTestNamespace"
-  } -description {
-    this is a description of cmdA
-  } -test {{t} {
-    set got [cmdA]
-    set want "defined inside eval bTestNamespace"
-    if {$got ne $want} {
-      xproc::fail $t  "got: $got, want: $want"
-    }
-  } bTestNamespace}
-  xproc::proc cmdB {} {
-    return "defined inside eval bTestNamespace"
-  } -description {
-    this is a description of cmdB
-  } -test {{t} {
-    set got [cmdB]
-    set want "defined inside eval bTestNamespace"
-    if {$got ne $want} {
-      xproc::fail $t  "got: $got, want: $want"
-    }
-  } bTestNamespace}
-}
-
-#
-# This shouldn't appear in tests or descriptions because is removed in both.
-# This will be removed using remove all -match ...
-namespace eval bbTestNamespace {
-  xproc::proc cmdA {} {
-    return "defined inside eval bbTestNamespace"
-  } -description {
-    this is a description of cmdA
-  } -test {{t} {
-    set got [cmdA]
-    set want "defined inside eval bbTestNamespace"
-    if {$got ne $want} {
-      xproc::fail $t  "got: $got, want: $want"
-    }
-  } bbTestNamespace}
-  xproc::proc cmdB {} {
-    return "defined inside eval bbTestNamespace"
-  } -description {
-    this is a description of cmdB
-  } -test {{t} {
-    set got [cmdB]
-    set want "defined inside eval bbTestNamespace"
-    if {$got ne $want} {
-      xproc::fail $t  "got: $got, want: $want"
-    }
-  } bbTestNamespace}
-}
-
-
-# This shouldn't appear in tests because is removed
-namespace eval cTestNamespace {
-  xproc::proc cmdA {} {
-    return "defined inside eval cTestNamespace"
-  } -description {
-    this is a description of cmdA
-  } -test {{t} {
-    set got [cmdA]
-    set want "defined inside eval cTestNamespace"
-    if {$got ne $want} {
-      xproc::fail $t  "got: $got, want: $want"
-    }
-  } cTestNamespace}
-}
-
-
-# This shouldn't appear in descriptions because is removed
-namespace eval dTestNamespace {
-  xproc::proc cmdA {} {
-    return "defined inside eval dTestNamespace"
-  } -description {
-    this is a description of cmdA
-  } -test {{t} {
-    set got [cmdA]
-    set want "defined inside eval dTestNamespace"
-    if {$got ne $want} {
-      xproc::fail $t  "got: $got, want: $want"
-    }
-  } dTestNamespace}
-}
-
-# Remove relevant namespaces as described above
-xproc::remove tests -match {::bTestName* ::cTestName*}
-xproc::remove descriptions -match {::bTestName* ::dTestName*}
-xproc::remove all -match {::bbTestName*}
-
-
-test proc-1 {Allows normal definition of a proc} -body {
-  xproc::proc addNums {a b} {expr {$a+$b}}
-  addNums 7 9
-} -result {16}
-
-
-xproc::proc waitMS {ms} {
-  after $ms
-} -test {{t} {
-  set timeStart [clock microseconds]
-  waitMS 100
-  set timeEnd [clock microseconds]
-  set timeElapsed [expr {$timeEnd-$timeStart}]
-  if {$timeElapsed < 100000 || $timeElapsed > 1000000} {
-    xproc::fail $t  "timeElapsed: $timeElapsed"
-  }
-}}
-
-xproc::proc waitMSFail {ms} {
-  after $ms
-} -test {{t} {
-  set timeStart [clock microseconds]
-  waitMSFail 100
-  xproc::fail $t  "here is an error"
-}}
 
 test runTests-1 {Test ::xproc::test tests} -body {
-  xproc::runTests -match {*xproc*}
-} -cleanup {
-  xproc::remove tests -match {*xproc*}
+  xproc::runTests -match {*::xproc*}
 } -output {
-Total: 25,  Passed: 14,  Skipped: 11,  Failed: 0
-} -result {total 25 passed 14 skipped 11 failed 0}
-
-
-test runTests-2 {Ensure timings work} -body {
-  xproc::runTests -verbose 2 -match {*waitMS*}
-} -cleanup {
-  xproc::remove all -match {*waitMS*}
-} -output {=== SKIP   ::addNums2
-=== SKIP   ::addNums3
-=== SKIP   ::addNums4
-=== SKIP   ::addNums5
-=== SKIP   ::subNums
-=== SKIP   ::aTestNamespace::cmdA
-=== SKIP   ::aTestNamespace::cmdB
-=== SKIP   ::aTestNamespace::cmdC
-=== SKIP   ::dTestNamespace::cmdA
-=== RUN   ::waitMS
---- PASS  ::waitMS (0.10s)
-=== RUN   ::waitMSFail
---- FAIL  ::waitMSFail (0.10s)
-          here is an error
-
-Total: 11,  Passed: 1,  Skipped: 9,  Failed: 1
-} -result [dict create total 11 passed 1 skipped 9 failed 1]
-
-
-test runTests-3 {Provide correct fail output with errors} -setup {
-  xproc::proc raiseErrorCmd {a b} {
-    expr {$a-$c}
-  } -test {{t} {
-    raiseErrorCmd 4 5
-  }}
-  xproc::proc addNumsInTestCaseNotEqResult {a b} {
-    expr {$a+$b}
-  } -test {{t} {
-    set cases {
-      {input {7 9} result 16}
-      {input {2 3} result 17}
-      {input {2 4} result 4}
-      {input {2 4} result 9}
-    }
-    set i 0
-    foreach c $cases {
-      if {$i == 3} {
-        error "Time to fail - i: $i"
-      }
-      dict with c {
-        set got [addNumsInTestCaseNotEqResult {*}$input]
-        if {$got != $result} {
-          xproc::fail $t  "($i) got: $got, want: $result"
-        }
-      }
-      incr i
-    }
-  }}
-
-  # Checks if a testCase lambda raises an error it should be recorded
-  # even if no result specified
-  xproc::proc subNumsTestCaseRaisesErrorNoResult {a b} {
-    expr {$a-$b}
-  } -description {
-    Subtract one number from another and return the result
-  } -test {{t} {
-    set cases {
-      {input {5 4}}
-      {input {2 4 7} returnCodes {error}}
-      {input {4 4}}
-    }
-    xproc::testCases $t $cases {{case} {
-      dict with case {
-        if {[llength $input] == 3} {
-          return -code error "too many values in input"
-        }
-        subNumsTestCaseRaisesErrorNoResult {*}$input
-      }
-    }}
-  }}
-} -body {
-  xproc::runTests -match {::raiseErrorCmd ::addNumsInT* ::subNumsTe*}
-} -cleanup {
-  xproc::remove all -match {::addNumsInT* ::raiseErrorCmd ::subNumsTe*}
-} -output [string map [list !openBrace! "\{"] {--- FAIL  ::raiseErrorCmd (0.00s)
-          can't read "c": no such variable
-              while executing
-          "expr {$a-$c}"
-              (procedure "raiseErrorCmd" line 2)
-              invoked from within
-          "raiseErrorCmd 4 5"
-              (lambda term "{t} {
-              raiseErrorCmd 4 5
-            }" line 2)
-              invoked from within
-          "apply {{t} {
-              raiseErrorCmd 4 5
-            }} 36"
-              ("uplevel" body line 1)
-              invoked from within
-          "uplevel 1 [list apply [dict get $test lambda] $testRun]"
---- FAIL  ::addNumsInTestCaseNotEqResult (0.00s)
-          (1) got: 5, want: 17
-          (2) got: 6, want: 4
-          Time to fail - i: 3
-              while executing
-          "error "Time to fail - i: $i""
-              (lambda term "{t} !openBrace!
-              set cases !openBrace!
-                {input {7 9} result 16}
-                !openBrace!i..." line 11)
-              invoked from within
-          "apply !openBrace!{t} !openBrace!
-              set cases !openBrace!
-                {input {7 9} result 16}
-                {input {2 3} result 17}
-                {input {2 4} result 4}
-                {input {2 4} result 9}
-             ..."
-              ("uplevel" body line 1)
-              invoked from within
-          "uplevel 1 [list apply [dict get $test lambda] $testRun]"
---- FAIL  ::subNumsTestCaseRaisesErrorNoResult (0.00s)
-          (1) too many values in input
-
-Total: 12,  Passed: 0,  Skipped: 9,  Failed: 3
-}] -result {total 12 passed 0 skipped 9 failed 3}
-
-
-test runTests-4 {Provide correct test output} -body {
-  xproc::runTests
-} -output [string map [list !openBrace! "\{"] {--- FAIL  ::addNums2 (0.00s)
-          (1) got: 5, want: 18
---- FAIL  ::addNums3 (0.00s)
-          (0) got: 16, want: 15
-          (2) got: 6, want: 7
---- FAIL  ::addNums5 (0.00s)
-          (1) got: 5, want: 18
-
-Total: 9,  Passed: 6,  Skipped: 0,  Failed: 3
-}] -result [dict create total 9 passed 6 skipped 0 failed 3]
-
-
-test runTests-5 {-verbose 2 should list passing tests} -body {
-  xproc::runTests -verbose 2
-} -output [string map [list !openBrace! "\{"] {=== RUN   ::addNums2
---- FAIL  ::addNums2 (0.00s)
-          (1) got: 5, want: 18
-=== RUN   ::addNums3
---- FAIL  ::addNums3 (0.00s)
-          (0) got: 16, want: 15
-          (2) got: 6, want: 7
-=== RUN   ::addNums4
---- PASS  ::addNums4 (0.00s)
-=== RUN   ::addNums5
---- FAIL  ::addNums5 (0.00s)
-          (1) got: 5, want: 18
-=== RUN   ::subNums
---- PASS  ::subNums (0.00s)
-=== RUN   ::aTestNamespace::cmdA
---- PASS  ::aTestNamespace::cmdA (0.00s)
-=== RUN   ::aTestNamespace::cmdB
---- PASS  ::aTestNamespace::cmdB (0.00s)
-=== RUN   ::aTestNamespace::cmdC
---- PASS  ::aTestNamespace::cmdC (0.00s)
-=== RUN   ::dTestNamespace::cmdA
---- PASS  ::dTestNamespace::cmdA (0.00s)
-
-Total: 9,  Passed: 6,  Skipped: 0,  Failed: 3
-}] -result [dict create total 9 passed 6 skipped 0 failed 3]
-
-
-test runTests-6 {Just test certain tests using -match} -body {
-  xproc::runTests -verbose 2 -match {*::M* ::ad*ums4 *2 ::aTest*}
-} -output {=== RUN   ::addNums2
---- FAIL  ::addNums2 (0.00s)
-          (1) got: 5, want: 18
-=== SKIP   ::addNums3
-=== RUN   ::addNums4
---- PASS  ::addNums4 (0.00s)
-=== SKIP   ::addNums5
-=== SKIP   ::subNums
-=== RUN   ::aTestNamespace::cmdA
---- PASS  ::aTestNamespace::cmdA (0.00s)
-=== RUN   ::aTestNamespace::cmdB
---- PASS  ::aTestNamespace::cmdB (0.00s)
-=== RUN   ::aTestNamespace::cmdC
---- PASS  ::aTestNamespace::cmdC (0.00s)
-=== SKIP   ::dTestNamespace::cmdA
-
-Total: 9,  Passed: 4,  Skipped: 4,  Failed: 1
-} -result [dict create total 9 passed 4 skipped 4 failed 1]
-
-
-test runTests-7 {-verbose 0 should produce no output to stdout} -body {
-  xproc::runTests -verbose 0
-} -output {} -result [dict create total 9 passed 6 skipped 0 failed 3]
-
-
-test descriptions-1 {Ensure there is a description for each exported xproc command} -body {
-  foreach cmd [info commands ::xproc::*] {
-    if {[regexp {^::xproc::[a-z]+.*$} $cmd]} {lappend exportedCommands $cmd}
-  }
-  set numXprocExportedCommands [llength $exportedCommands]
-  set numXprocDescriptions [dict size [xproc::descriptions -match {*xproc*}]]
-  list $numXprocExportedCommands $numXprocDescriptions
-} -cleanup {
-  xproc::remove descriptions -match {*xproc*}
-} -result {9 9}
-
-
-test descriptions-2 {Return descriptions} -body {
-  xproc::descriptions
-} -result [dict create ::addNums2 {Add two numbers together and return the result
-
-This could work as follows:
-  addNums2 7 9      ; # Would return 16} \
-::addNums3 {Add two numbers together and return the result
-
-This could work as follows:
-  addNums3 7 9      ; # Would return 16} \
-::addNums4 {Add two numbers together and return the result
-
-This could work as follows:
-  addNums4 7 9      ; # Would return 16} \
-::addNums5 {Add two numbers together and return the result
-
-This could work as follows:
-  addNums5 7 9      ; # Would return 16} \
-::subNums {Subtract one number from another and return the result
-
-This could work as follows:
-  subNums 7 9      ; # Would return -2} \
-::aTestNamespace::cmdA {this is a description of cmdA} \
-::aTestNamespace::cmdB {this is a description of cmdB} \
-::aTestNamespace::cmdC {this is a description of cmdC} \
-::cTestNamespace::cmdA {this is a description of cmdA}]
-
-
-test descriptions-3 {Return specified descriptions using -match} -body {
-  xproc::descriptions -match {addNums5 ::addNums4 *ubN* *cmdA*}
-} -result [dict create ::addNums4 {Add two numbers together and return the result
-
-This could work as follows:
-  addNums4 7 9      ; # Would return 16} \
-::subNums {Subtract one number from another and return the result
-
-This could work as follows:
-  subNums 7 9      ; # Would return -2} \
-::aTestNamespace::cmdA {this is a description of cmdA} \
-::cTestNamespace::cmdA {this is a description of cmdA}]
-
+Total: 14,  Passed: 14,  Skipped: 0,  Failed: 0
+} -result {total 14 passed 14 skipped 0 failed 0}
 
 cleanupTests

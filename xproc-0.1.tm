@@ -13,7 +13,7 @@ namespace eval xproc {
 
 
 ###################################################################
-# Descriptions and tests for exported procedures are at the end
+# Descriptions for exported procedures are at the end
 # of this file because certain functions need to be defined before
 # xproc can be used to add the descriptions.
 ###################################################################
@@ -279,19 +279,16 @@ proc xproc::TestRun::new {} {
   return $n
 }
 
-
 proc xproc::TestRun::fail {testRun msg} {
   variable runs
   set oldFailMessages [dict get $runs $testRun failMessages]
   dict set runs $testRun failMessages [list {*}$oldFailMessages $msg]
 }
 
-
 proc xproc::TestRun::failMessages {testRun} {
   variable runs
   return [dict get $runs $testRun failMessages]
 }
-
 
 proc xproc::TestRun::hasFailed {testRun} {
   variable runs
@@ -627,7 +624,7 @@ line to see if everything is aligned properly
 
 
 ##################################################
-# Tests and Descriptions for exported procedures
+# Descriptions for exported procedures
 ##################################################
 
 xproc::describe xproc::proc {
@@ -641,53 +638,6 @@ xproc::describe xproc::proc {
                                to test this procedure.  The lambda has
                                one parameter which is the testRun.
 }
-
-xproc::test xproc::proc {{t} {
-  # Check errors
-  set cases {
-    {input {xproc::Dummy-1 {} {} -bob}
-     returnCodes {error} result "unknown option: -bob"}
-    {input {xproc::Dummy-2 {} {} bob}
-     returnCodes {error} result "invalid number of arguments"}
-    {input {xproc::Dummy-3 {a b} {
-              expr {$a+$b}
-            } -test {{t} {
-              set got [xproc::Dummy-3 2 3]
-              set want 5
-              if {$got != $want} {
-                xproc::fail $t "got: $got, want: $want"
-              }
-            }} -description {Add two numbers together}}
-     passed 1 failed 0 minTotal 5 maxTotal 50}
-
-  }
-  xproc::testCases $t $cases {{case} {
-    try {
-      dict with case {
-        xproc::proc {*}$input
-        set gotSummary [xproc::runTests -match {::xproc::Dummy-*} -verbose 0]
-        set wantDescriptions [
-          dict create ::xproc::Dummy-3 {Add two numbers together}
-        ]
-        dict with gotSummary {
-          if {$passed != $passed || $failed != $failed ||
-              $total <= $minTotal || $total >= $maxTotal} {
-            return -code error "summary incorrect - got: $gotSummary"
-          }
-        }
-        set gotDescriptions [xproc::descriptions -match {::xproc::Dummy-*}]
-        if {$gotDescriptions ne $wantDescriptions} {
-          return -code error \
-              "descriptions - got: $gotDescriptions, want: $wantDescriptions"
-        }
-      }
-    } finally {
-      xproc::remove all -match {::xproc::Dummy-*}
-      catch {rename xproc::[lindex $input 0] ""}
-    }
-  }}
-}}
-
 
 xproc::describe xproc::remove {
   Remove xproc functionality from procedures
@@ -703,68 +653,6 @@ xproc::describe xproc::remove {
     -match patternList    Matches procedureNames against patterns in
                           patternList, the default is {"*"}
 }
-
-xproc::test xproc::remove {{t} {
-  # Check errors
-  set cases {
-    {input {all -fred}
-     returnCodes {error} result "unknown option: -fred"}
-    {input {bob}
-     returnCodes {error} result "unknown type: bob"}
-  }
-  xproc::testCases $t $cases {{case} {
-    dict with case {xproc::remove {*}$input}
-  }}
-
-  try {
-    for {set n 1} {$n <= 3} {incr n} {
-      xproc::proc xproc::Dummy-$n {a b} {
-        expr {$a+$b}
-      } -test {{t} {
-        set got [xproc::Dummy-3 2 3]
-        set want 5
-        if {$got != $want} {
-          xproc::fail $t "got: $got, want: $want"
-        }
-      }} -description {Add two numbers together}
-    }
-    xproc::remove tests -match {*Dummy-2}
-    set gotSummary [xproc::runTests -match {::xproc::Dummy-*} -verbose 0]
-    dict with gotSummary {
-      if {$passed != 2 || $failed != 0 || $total < 5 || $total > 100} {
-        $t fail "after remove tests Dummy-2 - summary incorrect - got: $gotSummary"
-      }
-    }
-    xproc::remove descriptions -match {*Dummy-3}
-    set gotDescriptions [xproc::descriptions -match {::xproc::Dummy-*}]
-    set gotDescriptionProcNames [dict keys $gotDescriptions]
-    set wantDescriptionProcNames {::xproc::Dummy-1 ::xproc::Dummy-2}
-    if {$gotDescriptionProcNames ne $wantDescriptionProcNames} {
-      xproc::fail $t \
-          "after remove descriptions Dummy-3 - descriptions - got keys: $gotDescriptionProcNames, want: $wantDescriptionProcNames"
-    }
-    xproc::remove all -match {::xproc::Dummy-*}
-    set gotSummary [xproc::runTests -match {::xproc::Dummy-*} -verbose 0]
-    dict with gotSummary {
-      if {$passed != 0 || $failed != 0 || $total < 5 || $total > 100} {
-        xproc::fail $t
-            "after remove all Dummy-* - summary incorrect - got: $gotSummary"
-      }
-    }
-    set gotDescriptions [xproc::descriptions -match {::xproc::Dummy-*}]
-    set gotDescriptionProcNames [dict keys $gotDescriptions]
-    if {[llength $gotDescriptionProcNames] != 0} {
-      xproc::fail $t \
-          "after remove descriptions all Dummy-* descriptions - got keys: $gotDescriptionProcNames, want: $wantDescriptionProcNames"
-    }
-  } finally {
-    xproc::remove all -match {::xproc::Dummy-*}
-    rename xproc::Dummy-1 ""
-    rename xproc::Dummy-2 ""
-    rename xproc::Dummy-3 ""
-  }
-}}
-
 
 xproc::describe xproc::testCases {
   Test the supplied test cases within a test lambda
@@ -802,35 +690,11 @@ xproc::describe xproc::test {
   The lambda has one parameter which is the testRun
 }
 
-xproc::test xproc::test {{t} {
-  set cases {
-    {input {DummyNotExist {{t} {}}}
-     returnCodes {error}
-     result {procedureName doesn't exist: DummyNotExist}}
-  }
-  xproc::testCases $t $cases {{case} {
-    dict with case {xproc::test {*}$input}
-  }}
-}}
-
-
 xproc::describe xproc::describe {
   Record the given description for a procedure
 
   xproc::describe procedureName description
 }
-
-xproc::test xproc::describe {{t} {
-  set cases {
-    {input {DummyNotExist {{t} {}}}
-     returnCodes {error}
-     result {procedureName doesn't exist: DummyNotExist}}
-  }
-  xproc::testCases $t $cases {{case} {
-    dict with case {xproc::describe {*}$input}
-  }}
-}}
-
 
 xproc::describe xproc::runTests {
   Run the tests recorded using xproc
@@ -848,40 +712,6 @@ xproc::describe xproc::runTests {
                           The default is 1
 }
 
-xproc::test xproc::runTests {{t} {
-  set ch [xproc::ChannelMonitor new]
-  # Run all the tests except this one to prevent an infinite loop
-  set tests [
-    dict filter [xproc::tests -match {*xproc::*}] script {k v} {
-      expr {![string match "*xproc::runTests" $k]}
-    }
-  ]
-  set procNames [dict keys $tests]
-  set summary [xproc::runTests -verbose 1 -channel $ch -match $procNames]
-  dict with summary {
-    set wantTotal [expr {$passed+$failed+$skipped}]
-    if {$total != $wantTotal} {
-      xproc::fail $t "got total: $total, want: $wantTotal"
-    }
-    if {$passed < 5 || $passed > 50} {
-      xproc::fail $t "got passed: $passed, want: passed >= 5 && passed <= 50"
-    }
-    if {$skipped < 1 || $skipped > 50} {
-      xproc::fail $t \
-          "got skipped: $skipped, want: skipped >= 1 && skipped <= 50"
-    }
-    if {$failed != 0} {xproc::fail $t "got failed: $failed, want: 0"}
-  }
-
-  set wantChannelOutput "\nTotal: \\d\\d,  Passed: 13,  Skipped: 12,  Failed: 0\n"
-  set channelOutput [xproc::ChannelMonitor getWriteData $ch]
-  if {![regexp $wantChannelOutput $channelOutput]} {
-    xproc::fail $t \
-        "got channelOutput: $channelOutput, want: $wantChannelOutput"
-  }
-  close $ch
-}}
-
 
 xproc::describe xproc::descriptions {
   Return the descriptions recorded using xproc
@@ -896,25 +726,6 @@ xproc::describe xproc::descriptions {
   key and the description as the value.
 }
 
-xproc::test xproc::descriptions {{t} {
-  set cases {
-    {input {-match {*xproc::descriptions *xproc::test}} minNum 2 maxNum 2}
-    {input {-match {*xproc*}} minNum 5 maxNum 100}
-    {input {} minNum 5 maxNum 25}
-  }
-  xproc::testCases $t $cases {{case} {
-    dict with case {
-      set got [xproc::descriptions {*}$input]
-      set numGot [dict size $got]
-      if {$numGot < $minNum || $numGot > $maxNum} {
-        return -code error \
-            "got num descriptions: $numGot, want >= $minNum && <= $maxNum"
-      }
-    }
-  }}
-}}
-
-
 xproc::describe xproc::tests {
   Return the tests recorded using xproc
 
@@ -927,21 +738,3 @@ xproc::describe xproc::tests {
   The return value is a dictionary with the procedureNames as the
   key.
 }
-
-xproc::test xproc::tests {{t} {
-  set cases {
-    {input {-match {*xproc::tests *xproc::test}} minNum 2 maxNum 2}
-    {input {-match {*xproc*}} minNum 5 maxNum 100}
-    {input {} minNum 5 maxNum 25}
-  }
-  xproc::testCases $t $cases {{case} {
-    dict with case {
-      set got [xproc::tests {*}$input]
-      set numGot [dict size $got]
-      if {$numGot < $minNum || $numGot > $maxNum} {
-        return -code error \
-            "got num tests: $numGot, want >= $minNum && <= $maxNum"
-      }
-    }
-  }}
-}}
