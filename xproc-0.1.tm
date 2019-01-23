@@ -250,11 +250,15 @@ proc xproc::fail {testRun msg} {
 
 
 
+###########################
+# Unexported commands
+###########################
+
 namespace eval xproc::TestRun {
   namespace export {[a-z]*}
   namespace ensemble create
-  variable runs
-  variable n
+  variable runs {}
+  variable n 0
 }
 
 proc xproc::TestRun::new {} {
@@ -280,10 +284,6 @@ proc xproc::TestRun::hasFailed {testRun} {
   return [expr {[llength [dict get $runs $testRun failMessages]] > 0}]
 }
 
-
-###########################
-# Unexported commands
-###########################
 
 proc xproc::RunTest {procName test id verbose channel match} {
   dict set test skip false
