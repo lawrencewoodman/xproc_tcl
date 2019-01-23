@@ -22,6 +22,13 @@ There is a testsuite in `tests/`.  To run it:
 
     $ tclsh tests/all.tcl
 
+
+Documentation
+-------------
+Descriptions of all the exported commands can be generated from the code using:
+
+    $ tclsh utils/descriptions.tcl
+
 Contributing
 ------------
 I would love contributions to improve this project.  To do so easily I ask the following:
