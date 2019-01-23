@@ -698,6 +698,9 @@ xproc::describe xproc::describe {
   Record the given description for a procedure
 
   xproc::describe procedureName description
+
+  A description shouldn't contain tabs as it will cause text
+  alignment issues.
 }
 
 xproc::describe xproc::runTests {
