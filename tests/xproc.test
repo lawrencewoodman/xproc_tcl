@@ -313,7 +313,7 @@ xproc::test -id 4 xproc::runTests {{t} {
 }}
 
 
-xproc::test xproc::descriptions {{t} {
+xproc::test -id 1 xproc::descriptions {{t} {
   set cases {
     {input {-match {*xproc::descriptions *xproc::test}} minNum 2 maxNum 2}
     {input {-match {*xproc*}} minNum 5 maxNum 100}
@@ -329,6 +329,49 @@ xproc::test xproc::descriptions {{t} {
       }
     }
   }}
+}}
+
+
+xproc::test -id 2 xproc::descriptions {{t} {
+  # Check that there is a description for each exported xproc command
+  foreach cmd [info commands ::xproc::*] {
+    if {[regexp {^::xproc::[a-z]+.*$} $cmd]} {lappend exportedCommands $cmd}
+  }
+  set numXprocExportedCommands [llength $exportedCommands]
+  if {$numXprocExportedCommands < 5} {
+    return -code error "too few exported xproc commands: $numXprocExportedCommands"
+  }
+  set numXprocDescriptions [dict size [xproc::descriptions -match {*xproc*}]]
+  if {$numXprocExportedCommands != $numXprocDescriptions} {
+    xproc::fail $t "got num xproc descriptions: $numXprocDescriptions, want: $numXprocExportedCommands"
+  }
+}}
+
+
+xproc::test -id 3 xproc::descriptions {{t} {
+  # Check that descriptions are returned properly
+  xproc::describe TestHelpers::addNums {
+    A function to add a sequence of numbers together
+  }
+  xproc::describe TestHelpers::waitMS {
+    Wait for a specified number of milliseconds
+  }
+  try {
+    set got [
+      xproc::descriptions -match {*TestHelpers::addNums *TestHelpers::waitMS}
+    ]
+    set want [
+      dict create ::TestHelpers::addNums \
+          {A function to add a sequence of numbers together} \
+          ::TestHelpers::waitMS {Wait for a specified number of milliseconds}
+    ]
+    if {$got ne $want} {
+      xproc::fail $t "got: $got, want: $want"
+    }
+  } finally {
+    xproc::remove descriptions \
+        -match {*TestHelpers::addNums *TestHelpers::waitMS}
+  }
 }}
 
 
@@ -366,7 +409,7 @@ xproc::test xproc::tests {{t} {
 test runTests-1 {Test ::xproc::test tests} -body {
   xproc::runTests -match {*::xproc*}
 } -output {
-Total: 19,  Passed: 19,  Skipped: 0,  Failed: 0
-} -result {total 19 passed 19 skipped 0 failed 0}
+Total: 21,  Passed: 21,  Skipped: 0,  Failed: 0
+} -result {total 21 passed 21 skipped 0 failed 0}
 
 cleanupTests
