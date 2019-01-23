@@ -688,7 +688,7 @@ xproc::describe xproc::test {
 
   The switches do the following:
     -id id    Give an id to the test to allow multiple tests
-              for a procedureName.  The default is 0.
+              for a procedureName.  The default is 1.
     --        Marks the end of switches
 
   The lambda has one parameter which is the testRun
