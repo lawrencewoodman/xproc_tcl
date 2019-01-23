@@ -156,17 +156,17 @@ xproc::test -id 1 xproc::test {{t} {
 
 xproc::test -id 2 xproc::test {{t} {
   # Test adding of tests
+  xproc::test -- ::TestHelpers::addNums {{t} {
+    set got [::TestHelpers::addNums 7 8 9]
+    set want 24
+    if {$got != $want} {xproc::fail $t "got: $got, want: $want"}
+  }}
+  xproc::test -id 2 ::TestHelpers::addNums {{t} {
+    set got [::TestHelpers::addNums 1 2 3]
+    set want 6
+    if {$got != $want} {xproc::fail $t "got: $got, want: $want"}
+  }}
   try {
-    xproc::test -- ::TestHelpers::addNums {{t} {
-      set got [::TestHelpers::addNums 7 8 9]
-      set want 24
-      if {$got != $want} {xproc::fail $t "got: $got, want: $want"}
-    }}
-    xproc::test -id 2 ::TestHelpers::addNums {{t} {
-      set got [::TestHelpers::addNums 1 2 3]
-      set want 6
-      if {$got != $want} {xproc::fail $t "got: $got, want: $want"}
-    }}
     set summary [xproc::runTests -verbose 0 -match {::TestHelpers::addNums}]
     set wantPassed 2
     set wantFailed 0
@@ -184,9 +184,9 @@ xproc::test -id 2 xproc::test {{t} {
 }}
 
 
-xproc::test xproc::runTests {{t} {
+xproc::test -id 1 xproc::runTests {{t} {
+  # Run all xproc tests except this one to prevent an infinite loop
   set ch [TestHelpers::channelMonitor new]
-  # Run all the tests except this one to prevent an infinite loop
   set tests [
     dict filter [xproc::tests -match {*xproc::*}] script {k v} {
       expr {![string match "*xproc::runTests" $k]}
@@ -202,13 +202,13 @@ xproc::test xproc::runTests {{t} {
     if {$passed < 5} {
       xproc::fail $t "got passed: $passed, want: passed >= 5"
     }
-    if {$skipped < 1} {
-      xproc::fail $t "got skipped: $skipped, want: skipped >= 1"
+    if {$skipped != 4} {
+      xproc::fail $t "got skipped: $skipped, want: 4"
     }
     if {$failed != 0} {xproc::fail $t "got failed: $failed, want: 0"}
   }
 
-  set wantChannelOutput "\nTotal: \\d+,  Passed: \\d+,  Skipped: 1,  Failed: 0\n"
+  set wantChannelOutput "\nTotal: \\d+,  Passed: \\d+,  Skipped: 4,  Failed: 0\n"
   set channelOutput [TestHelpers::channelMonitor getWriteData $ch]
   if {![regexp $wantChannelOutput $channelOutput]} {
     xproc::fail $t \
@@ -216,6 +216,102 @@ xproc::test xproc::runTests {{t} {
   }
   close $ch
 }}
+
+
+xproc::test -id 2 xproc::runTests {{t} {
+  # Check timings work
+  xproc::test -id 1 ::TestHelpers::waitMS {{t} {
+    set timeStart [clock microseconds]
+    ::TestHelpers::waitMS 100
+    set timeEnd [clock microseconds]
+    set timeElapsed [expr {$timeEnd-$timeStart}]
+    if {$timeElapsed < 100000 || $timeElapsed > 1000000} {
+      xproc::fail $t  "timeElapsed: $timeElapsed"
+    }
+  }}
+  xproc::test -id 2 ::TestHelpers::waitMS {{t} {
+    set timeStart [clock microseconds]
+    ::TestHelpers::waitMS 150
+    xproc::fail $t  "here is an error"
+  }}
+  set ch [TestHelpers::channelMonitor new]
+  try {
+    xproc::runTests -verbose 2 -channel $ch -match {*TestHelpers::waitMS}
+    set channelOutput [TestHelpers::channelMonitor::getWriteData $ch]
+    set lines [split $channelOutput "\n"]
+    set captureLines {}
+    foreach line $lines {
+      if {[string match {--- FAIL*} $line] ||
+          [string match {--- PASS*} $line]} {
+        lappend captureLines $line
+      }
+    }
+    set wantCaptureLines [
+      list "--- PASS  ::TestHelpers::waitMS/1 (0.10s)" \
+           "--- FAIL  ::TestHelpers::waitMS/2 (0.15s)"
+    ]
+    if {$captureLines ne $wantCaptureLines} {
+      xproc::fail $t \
+          "got capture lines: $captureLines, want: $wantCaptureLines"
+    }
+  } finally {
+    xproc::remove all -match {*TestHelpers::waitMS}
+    close $ch
+  }
+}}
+
+
+xproc::test -id 3 xproc::runTests {{t} {
+  # -verbose 0 should produce no output to stdout
+  set ch [TestHelpers::channelMonitor new]
+  try {
+    xproc::runTests -verbose 0 -channel $ch -match {*xproc::t*}
+    set channelOutput [TestHelpers::channelMonitor::getWriteData $ch]
+    if {$channelOutput ne ""} {
+      xproc::fail $t "incorrect channel output: $channelOutput"
+    }
+  } finally {
+    close $ch
+  }
+}}
+
+
+xproc::test -id 4 xproc::runTests {{t} {
+  # -verbose 1 should only list failing tests and summary
+  xproc::test -id 1 ::TestHelpers::addNums {{t} {
+    set got [::TestHelpers::addNums 7 8 9]
+    set want 24
+    if {$got != $want} {xproc::fail $t "got: $got, want: $want"}
+  }}
+  xproc::test -id 2 ::TestHelpers::addNums {{t} {
+    xproc::fail $t  "here is an error"
+  }}
+  set ch [TestHelpers::channelMonitor new]
+  try {
+    xproc::runTests -verbose 1 -channel $ch -match {*TestHelpers::addNums}
+    set channelOutput [TestHelpers::channelMonitor::getWriteData $ch]
+    set lines [split $channelOutput "\n"]
+    set captureLines {}
+    set gotNums [dict create numFAIL 0 numPASS 0 numSKIP 0 numSummary 0]
+    foreach line $lines {
+      if {[string match {--- FAIL*} $line]} {dict incr gotNums numFAIL}
+      if {[string match {--- PASS*} $line]} {dict incr gotNums numPASS}
+      if {[string match {--- SKIP*} $line]} {dict incr gotNums numSKIP}
+      if {[string match {Total:*Passed:*Skipped:*Failed:*} $line]} {
+        dict incr gotNums numSummary
+      }
+    }
+    set wantNums {numFAIL 1 numPASS 0 numSKIP 0 numSummary 1}
+    if {$gotNums ne $wantNums} {
+      xproc::fail $t \
+          "got nums: $gotNums, want: $wantNums"
+    }
+  } finally {
+    xproc::remove all -match {*TestHelpers::waitMS}
+    close $ch
+  }
+}}
+
 
 xproc::test xproc::descriptions {{t} {
   set cases {
@@ -270,7 +366,7 @@ xproc::test xproc::tests {{t} {
 test runTests-1 {Test ::xproc::test tests} -body {
   xproc::runTests -match {*::xproc*}
 } -output {
-Total: 16,  Passed: 16,  Skipped: 0,  Failed: 0
-} -result {total 16 passed 16 skipped 0 failed 0}
+Total: 19,  Passed: 19,  Skipped: 0,  Failed: 0
+} -result {total 19 passed 19 skipped 0 failed 0}
 
 cleanupTests

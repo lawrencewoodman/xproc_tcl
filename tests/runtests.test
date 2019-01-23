@@ -254,51 +254,7 @@ test proc-1 {Allows normal definition of a proc} -body {
 } -result {16}
 
 
-xproc::proc waitMS {ms} {
-  after $ms
-} -test {{t} {
-  set timeStart [clock microseconds]
-  waitMS 100
-  set timeEnd [clock microseconds]
-  set timeElapsed [expr {$timeEnd-$timeStart}]
-  if {$timeElapsed < 100000 || $timeElapsed > 1000000} {
-    xproc::fail $t  "timeElapsed: $timeElapsed"
-  }
-}}
-
-xproc::proc waitMSFail {ms} {
-  after $ms
-} -test {{t} {
-  set timeStart [clock microseconds]
-  waitMSFail 100
-  xproc::fail $t  "here is an error"
-}}
-
-
-test runTests-2 {Ensure timings work} -body {
-  xproc::runTests -verbose 2 -match {*waitMS*}
-} -cleanup {
-  xproc::remove all -match {*waitMS*}
-} -output {=== SKIP   ::addNums2/1
-=== SKIP   ::addNums3/1
-=== SKIP   ::addNums4/1
-=== SKIP   ::addNums5/1
-=== SKIP   ::subNums/1
-=== SKIP   ::aTestNamespace::cmdA/1
-=== SKIP   ::aTestNamespace::cmdB/1
-=== SKIP   ::aTestNamespace::cmdC/1
-=== SKIP   ::dTestNamespace::cmdA/1
-=== RUN   ::waitMS/1
---- PASS  ::waitMS/1 (0.10s)
-=== RUN   ::waitMSFail/1
---- FAIL  ::waitMSFail/1 (0.10s)
-          here is an error
-
-Total: 11,  Passed: 1,  Skipped: 9,  Failed: 1
-} -result [dict create total 11 passed 1 skipped 9 failed 1]
-
-
-test runTests-3 {Provide correct fail output with errors} -setup {
+test runTests-2 {Provide correct fail output with errors} -setup {
   xproc::proc raiseErrorCmd {a b} {
     expr {$a-$c}
   } -test {{t} {
@@ -400,7 +356,7 @@ test runTests-3 {Provide correct fail output with errors} -setup {
 ]
 
 
-test runTests-4 {Provide correct test output} -body {
+test runTests-3 {Provide correct test output} -body {
   xproc::runTests
 } -output {--- FAIL  ::addNums2/1 (0.00s)
           (1) got: 5, want: 18
@@ -414,7 +370,7 @@ Total: 9,  Passed: 6,  Skipped: 0,  Failed: 3
 } -result [dict create total 9 passed 6 skipped 0 failed 3]
 
 
-test runTests-5 {-verbose 2 should list passing tests} -body {
+test runTests-4 {-verbose 2 should list passing tests} -body {
   xproc::runTests -verbose 2
 } -output {=== RUN   ::addNums2/1
 --- FAIL  ::addNums2/1 (0.00s)
@@ -443,7 +399,7 @@ Total: 9,  Passed: 6,  Skipped: 0,  Failed: 3
 } -result [dict create total 9 passed 6 skipped 0 failed 3]
 
 
-test runTests-6 {Just test certain tests using -match} -body {
+test runTests-5 {Just test certain tests using -match} -body {
   xproc::runTests -verbose 2 -match {*::M* ::ad*ums4 *2 ::aTest*}
 } -output {=== RUN   ::addNums2/1
 --- FAIL  ::addNums2/1 (0.00s)
@@ -463,11 +419,6 @@ test runTests-6 {Just test certain tests using -match} -body {
 
 Total: 9,  Passed: 4,  Skipped: 4,  Failed: 1
 } -result [dict create total 9 passed 4 skipped 4 failed 1]
-
-
-test runTests-7 {-verbose 0 should produce no output to stdout} -body {
-  xproc::runTests -verbose 0
-} -output {} -result [dict create total 9 passed 6 skipped 0 failed 3]
 
 
 test descriptions-1 {Ensure there is a description for each exported xproc command} -body {

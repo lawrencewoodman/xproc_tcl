@@ -50,3 +50,7 @@ proc TestHelpers::channelMonitor::getWriteData {channelID} {
 proc TestHelpers::addNums {args} {
   return [::tcl::mathop::+ {*}$args]
 }
+
+proc TestHelpers::waitMS {ms} {
+  after $ms
+}
