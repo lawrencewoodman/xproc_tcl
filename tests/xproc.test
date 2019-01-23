@@ -200,15 +200,16 @@ xproc::test -id 1 xproc::runTests {{t} {
       xproc::fail $t "got total: $total, want: $wantTotal"
     }
     if {$passed < 5} {
-      xproc::fail $t "got passed: $passed, want: passed >= 5"
+      xproc::fail $t "got passed: $passed, want: >= 5"
     }
-    if {$skipped != 4} {
-      xproc::fail $t "got skipped: $skipped, want: 4"
+    if {$skipped < 5} {
+      xproc::fail $t "got skipped: $skipped, want: >= 5"
     }
     if {$failed != 0} {xproc::fail $t "got failed: $failed, want: 0"}
   }
 
-  set wantChannelOutput "\nTotal: \\d+,  Passed: \\d+,  Skipped: 4,  Failed: 0\n"
+  set wantChannelOutput \
+      "\nTotal: \\d+,  Passed: \\d+,  Skipped: \\d+,  Failed: 0\n"
   set channelOutput [TestHelpers::channelMonitor getWriteData $ch]
   if {![regexp $wantChannelOutput $channelOutput]} {
     xproc::fail $t \
@@ -286,28 +287,199 @@ xproc::test -id 4 xproc::runTests {{t} {
   xproc::test -id 2 ::TestHelpers::addNums {{t} {
     xproc::fail $t  "here is an error"
   }}
+  xproc::test -id 3 ::TestHelpers::addNums {{t} {
+    xproc::fail $t  "here is another error"
+  }}
+  xproc::test ::TestHelpers::waitMS {{t} {
+    xproc::fail $t  "here is yet another error"
+  }}
   set ch [TestHelpers::channelMonitor new]
   try {
-    xproc::runTests -verbose 1 -channel $ch -match {*TestHelpers::addNums}
+    xproc::runTests -verbose 1 -channel $ch -match {
+      *TestHelpers::addNums
+      *TestHelpers::waitMS
+    }
     set channelOutput [TestHelpers::channelMonitor::getWriteData $ch]
-    set lines [split $channelOutput "\n"]
-    set captureLines {}
-    set gotNums [dict create numFAIL 0 numPASS 0 numSKIP 0 numSummary 0]
-    foreach line $lines {
-      if {[string match {--- FAIL*} $line]} {dict incr gotNums numFAIL}
-      if {[string match {--- PASS*} $line]} {dict incr gotNums numPASS}
-      if {[string match {--- SKIP*} $line]} {dict incr gotNums numSKIP}
-      if {[string match {Total:*Passed:*Skipped:*Failed:*} $line]} {
-        dict incr gotNums numSummary
+    set channelLines [split $channelOutput "\n"]
+    set wantLines [list \
+        {--- FAIL  ::TestHelpers::addNums\/2 \(0.00s\)} \
+        {          here is an error} \
+        {--- FAIL  ::TestHelpers::addNums\/3 \(0.00s\)} \
+        {          here is another error} \
+        {--- FAIL  ::TestHelpers::waitMS\/1 \(0.00s\)} \
+        {          here is yet another error} \
+        {} \
+        {Total: \d+,  Passed: 1,  Skipped: \d+,  Failed: 3} \
+        {}
+    ]
+    foreach gotLine $channelLines wantLine $wantLines {
+      if {![regexp $wantLine $gotLine]} {
+        xproc::fail $t "got output line: $gotLine, want: $wantLine"
       }
     }
-    set wantNums {numFAIL 1 numPASS 0 numSKIP 0 numSummary 1}
-    if {$gotNums ne $wantNums} {
-      xproc::fail $t \
-          "got nums: $gotNums, want: $wantNums"
+  } finally {
+    xproc::remove all -match {*TestHelpers::addNums *TestHelpers::waitMS}
+    close $ch
+  }
+}}
+
+
+xproc::test -id 5 xproc::runTests {{t} {
+  # -verbose 2 should only list summary and all tests
+  xproc::test -id 1 ::TestHelpers::addNums {{t} {
+    set got [::TestHelpers::addNums 7 8 9]
+    set want 24
+    if {$got != $want} {xproc::fail $t "got: $got, want: $want"}
+  }}
+  xproc::test -id 2 ::TestHelpers::addNums {{t} {
+    xproc::fail $t  "here is an error"
+  }}
+  xproc::test -id 3 ::TestHelpers::addNums {{t} {
+    xproc::fail $t  "here is another error"
+  }}
+  xproc::test ::TestHelpers::waitMS {{t} {
+    xproc::fail $t  "here is yet another error"
+  }}
+  set ch [TestHelpers::channelMonitor new]
+  try {
+    xproc::runTests -verbose 2 -channel $ch -match {
+      *TestHelpers::addNums
+      *TestHelpers::waitMS
+    }
+    set channelOutput [TestHelpers::channelMonitor::getWriteData $ch]
+    set channelLines [split $channelOutput "\n"]
+    set gotNums {run 0 fail 0 pass 0 skip 0 summary 0}
+    foreach line $channelLines {
+      if {[string match {=== RUN*} $line]} {dict incr gotNums run}
+      if {[string match {--- FAIL*} $line]} {dict incr gotNums fail}
+      if {[string match {--- PASS*} $line]} {dict incr gotNums pass}
+      if {[string match {=== SKIP*} $line]} {dict incr gotNums skip}
+      if {[string match {Total*} $line]} {dict incr gotNums summary}
+    }
+    set wantRun 4
+    set wantFail 3
+    set wantPass 1
+    set wantSummary 1
+    dict with gotNums {
+      if {$run != $wantRun} {
+        xproc::fail $t "got run: $run, want: $wantRun"
+      }
+      if {$fail != $wantFail} {
+        xproc::fail $t "got fail: $fail, want: $wantFail"
+      }
+      if {$pass != $wantPass} {
+        xproc::fail $t "got pass: $pass, want: $wantPass"
+      }
+      if {$skip < 1} {
+        xproc::fail $t "got skip: $skip, want >= 1"
+      }
+      if {$summary != $wantSummary} {
+        xproc::fail $t "got summary: $summary, want: $wantSummary"
+      }
     }
   } finally {
-    xproc::remove all -match {*TestHelpers::waitMS}
+    xproc::remove all -match {*TestHelpers::addNums *TestHelpers::waitMS}
+    close $ch
+  }
+}}
+
+xproc::test -id 6 xproc::runTests {{t} {
+  # Check correct fail output for different sorts of errors
+  xproc::test ::TestHelpers::raiseErrorCmd {{t} {
+    ::TestHelpers::raiseErrorCmd 4 5
+  }}
+  xproc::test -id 1 ::TestHelpers::addNums {{t} {
+    set cases {
+      {input {7 9} result 16}
+      {input {2 3} result 17}
+      {input {2 4} result 4}
+      {input {2 4} result 9}
+    }
+    set i 0
+    foreach c $cases {
+      if {$i == 3} {
+        error "Time to fail - i: $i"
+      }
+      dict with c {
+        set got [::TestHelpers::addNums {*}$input]
+        if {$got != $result} {
+          xproc::fail $t  "($i) got: $got, want: $result"
+        }
+      }
+      incr i
+    }
+  }}
+
+  # Checks if a testCase lambda raises an error it should be recorded
+  # even if no result specified
+  xproc::test -id 2 ::TestHelpers::addNums {{t} {
+    set cases {
+      {input {5 4}}
+      {input {2 4 7} returnCodes {error}}
+      {input {4 4}}
+    }
+    xproc::testCases $t $cases {{case} {
+      dict with case {
+        if {[llength $input] == 3} {
+          return -code error "too many values in input"
+        }
+        ::TestHelpers::addNums {*}$input
+      }
+    }}
+  }}
+  set ch [TestHelpers::channelMonitor new]
+  try {
+    set summary [
+      xproc::runTests -channel $ch -match {
+        ::TestHelpers::raiseErrorCmd ::TestHelpers::addNums
+      }
+    ]
+    set channelOutput [TestHelpers::channelMonitor getWriteData $ch]
+    set lines [split $channelOutput "\n"]
+    set captureMore false
+    set captureLines {}
+    foreach line $lines {
+      if {[string match {--- FAIL*} $line]} {
+        lappend captureLines $line
+        set captureMore true
+      } elseif {$captureMore} {
+        lappend captureLines $line
+        if {[string match {*while executing} $line]} {
+          set captureMore false
+        }
+      }
+    }
+    set totalLine [lindex $captureLines end-1]
+    set totalLineCorrect [
+      regexp {Total: \d+,  Passed: 0,  Skipped: \d+,  Failed: 3} $totalLine
+    ]
+    set captureLines [lrange $captureLines 0 end-2]
+    set got [
+      dict create numFailed [dict get $summary failed] \
+                  captureLines $captureLines \
+                  totalLineCorrect $totalLineCorrect
+    ]
+    set want [dict create numFailed 3 \
+        captureLines [list \
+            "--- FAIL  ::TestHelpers::raiseErrorCmd/1 (0.00s)" \
+            "          can't read \"c\": no such variable" \
+            "              while executing" \
+            "--- FAIL  ::TestHelpers::addNums/1 (0.00s)" \
+            "          (1) got: 5, want: 17" \
+            "          (2) got: 6, want: 4" \
+            "          Time to fail - i: 3" \
+            "              while executing" \
+            "--- FAIL  ::TestHelpers::addNums/2 (0.00s)" \
+            "          (1) too many values in input" \
+            ""
+        ] \
+        totalLineCorrect 1
+    ]
+    if {$got ne $want} {
+      xproc::fail $t "got: $got, want: $want"
+    }
+  } finally {
+    xproc::remove all -match {*TestHelpers::addNums *TestHelpers::waitMS}
     close $ch
   }
 }}
@@ -406,10 +578,21 @@ xproc::test xproc::tests {{t} {
 }}
 
 
-test runTests-1 {Test ::xproc::test tests} -body {
-  xproc::runTests -match {*::xproc*}
-} -output {
-Total: 21,  Passed: 21,  Skipped: 0,  Failed: 0
-} -result {total 21 passed 21 skipped 0 failed 0}
+
+test runTests-1 {Run all xproc tests} -body {
+  set summary [xproc::runTests -verbose 1]
+  dict with summary {
+    set wantTotal [expr {$passed+$failed+$skipped}]
+    set result [
+      list [expr {$total == $wantTotal}] [expr {$passed > 20}] \
+           [expr {$skipped == 0}] [expr {$failed == 0}]
+    ]
+  }
+  set result
+} -match regexp -output {
+Total: \d+,  Passed: \d+,  Skipped: 0,  Failed: 0
+} -result {1 1 1 1}
+
+
 
 cleanupTests

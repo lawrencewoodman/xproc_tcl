@@ -54,3 +54,8 @@ proc TestHelpers::addNums {args} {
 proc TestHelpers::waitMS {ms} {
   after $ms
 }
+
+# Raises an error because $c doesn't exist
+proc TestHelpers::raiseErrorCmd {a b} {
+  expr {$a-$c}
+}
