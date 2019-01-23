@@ -1,20 +1,20 @@
 namespace eval TestHelpers {}
 
 # This is used to capture the output of a channel
-namespace eval TestHelpers::ChannelMonitor {
+namespace eval TestHelpers::channelMonitor {
   namespace export {[a-z]*}
   namespace ensemble create
   variable channels
 }
 
-proc TestHelpers::ChannelMonitor::new {} {
+proc TestHelpers::channelMonitor::new {} {
   variable channels
   return [chan create {write} \
-    [namespace which -command TestHelpers::ChannelMonitor]
+    [namespace which -command TestHelpers::channelMonitor]
   ]
 }
 
-proc TestHelpers::ChannelMonitor::initialize {channelID mode} {
+proc TestHelpers::channelMonitor::initialize {channelID mode} {
   variable channels
   if {"read" in $mode} {
     return -code error "unsupported mode: read"
@@ -25,15 +25,15 @@ proc TestHelpers::ChannelMonitor::initialize {channelID mode} {
   return {initialize finalize watch write}
 }
 
-proc TestHelpers::ChannelMonitor::finalize {channelID} {
+proc TestHelpers::channelMonitor::finalize {channelID} {
   variable channels
   dict unset channels $channelID
 }
 
-proc TestHelpers::ChannelMonitor::watch {channelID eventSpec} {
+proc TestHelpers::channelMonitor::watch {channelID eventSpec} {
 }
 
-proc TestHelpers::ChannelMonitor::write {channelID data} {
+proc TestHelpers::channelMonitor::write {channelID data} {
   variable channels
   set channelWriteData [dict get $channels $channelID writeData]
   append channelWriteData $data
@@ -41,7 +41,7 @@ proc TestHelpers::ChannelMonitor::write {channelID data} {
   return [string bytelength $data]
 }
 
-proc TestHelpers::ChannelMonitor::getWriteData {channelID} {
+proc TestHelpers::channelMonitor::getWriteData {channelID} {
   variable channels
   flush $channelID
   return [dict get $channels $channelID writeData]

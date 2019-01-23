@@ -185,7 +185,7 @@ xproc::test -id 2 xproc::test {{t} {
 
 
 xproc::test xproc::runTests {{t} {
-  set ch [TestHelpers::ChannelMonitor new]
+  set ch [TestHelpers::channelMonitor new]
   # Run all the tests except this one to prevent an infinite loop
   set tests [
     dict filter [xproc::tests -match {*xproc::*}] script {k v} {
@@ -209,7 +209,7 @@ xproc::test xproc::runTests {{t} {
   }
 
   set wantChannelOutput "\nTotal: \\d+,  Passed: \\d+,  Skipped: 1,  Failed: 0\n"
-  set channelOutput [TestHelpers::ChannelMonitor getWriteData $ch]
+  set channelOutput [TestHelpers::channelMonitor getWriteData $ch]
   if {![regexp $wantChannelOutput $channelOutput]} {
     xproc::fail $t \
         "got channelOutput: $channelOutput, want: $wantChannelOutput"

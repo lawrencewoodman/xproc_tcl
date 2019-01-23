@@ -349,14 +349,14 @@ test runTests-3 {Provide correct fail output with errors} -setup {
       }
     }}
   }}
-  set ch [TestHelpers::ChannelMonitor new]
+  set ch [TestHelpers::channelMonitor new]
 } -body {
   set summary [
     xproc::runTests -channel $ch -match {
       ::raiseErrorCmd ::addNumsInT* ::subNumsTe*
     }
   ]
-  set channelOutput [TestHelpers::ChannelMonitor getWriteData $ch]
+  set channelOutput [TestHelpers::channelMonitor getWriteData $ch]
   set lines [split $channelOutput "\n"]
   set captureMore false
   set captureLines {}
