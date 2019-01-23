@@ -279,19 +279,19 @@ test runTests-2 {Ensure timings work} -body {
   xproc::runTests -verbose 2 -match {*waitMS*}
 } -cleanup {
   xproc::remove all -match {*waitMS*}
-} -output {=== SKIP   ::addNums2
-=== SKIP   ::addNums3
-=== SKIP   ::addNums4
-=== SKIP   ::addNums5
-=== SKIP   ::subNums
-=== SKIP   ::aTestNamespace::cmdA
-=== SKIP   ::aTestNamespace::cmdB
-=== SKIP   ::aTestNamespace::cmdC
-=== SKIP   ::dTestNamespace::cmdA
-=== RUN   ::waitMS
---- PASS  ::waitMS (0.10s)
-=== RUN   ::waitMSFail
---- FAIL  ::waitMSFail (0.10s)
+} -output {=== SKIP   ::addNums2/1
+=== SKIP   ::addNums3/1
+=== SKIP   ::addNums4/1
+=== SKIP   ::addNums5/1
+=== SKIP   ::subNums/1
+=== SKIP   ::aTestNamespace::cmdA/1
+=== SKIP   ::aTestNamespace::cmdB/1
+=== SKIP   ::aTestNamespace::cmdC/1
+=== SKIP   ::dTestNamespace::cmdA/1
+=== RUN   ::waitMS/1
+--- PASS  ::waitMS/1 (0.10s)
+=== RUN   ::waitMSFail/1
+--- FAIL  ::waitMSFail/1 (0.10s)
           here is an error
 
 Total: 11,  Passed: 1,  Skipped: 9,  Failed: 1
@@ -384,15 +384,15 @@ test runTests-3 {Provide correct fail output with errors} -setup {
   close $ch
 } -result [dict create numFailed 3 \
   captureLines [list \
-    "--- FAIL  ::raiseErrorCmd (0.00s)" \
+    "--- FAIL  ::raiseErrorCmd/1 (0.00s)" \
     "          can't read \"c\": no such variable" \
     "              while executing" \
-    "--- FAIL  ::addNumsInTestCaseNotEqResult (0.00s)" \
+    "--- FAIL  ::addNumsInTestCaseNotEqResult/1 (0.00s)" \
     "          (1) got: 5, want: 17" \
     "          (2) got: 6, want: 4" \
     "          Time to fail - i: 3" \
     "              while executing" \
-    "--- FAIL  ::subNumsTestCaseRaisesErrorNoResult (0.00s)" \
+    "--- FAIL  ::subNumsTestCaseRaisesErrorNoResult/1 (0.00s)" \
     "          (1) too many values in input" \
     ""
   ] \
@@ -402,12 +402,12 @@ test runTests-3 {Provide correct fail output with errors} -setup {
 
 test runTests-4 {Provide correct test output} -body {
   xproc::runTests
-} -output {--- FAIL  ::addNums2 (0.00s)
+} -output {--- FAIL  ::addNums2/1 (0.00s)
           (1) got: 5, want: 18
---- FAIL  ::addNums3 (0.00s)
+--- FAIL  ::addNums3/1 (0.00s)
           (0) got: 16, want: 15
           (2) got: 6, want: 7
---- FAIL  ::addNums5 (0.00s)
+--- FAIL  ::addNums5/1 (0.00s)
           (1) got: 5, want: 18
 
 Total: 9,  Passed: 6,  Skipped: 0,  Failed: 3
@@ -416,28 +416,28 @@ Total: 9,  Passed: 6,  Skipped: 0,  Failed: 3
 
 test runTests-5 {-verbose 2 should list passing tests} -body {
   xproc::runTests -verbose 2
-} -output {=== RUN   ::addNums2
---- FAIL  ::addNums2 (0.00s)
+} -output {=== RUN   ::addNums2/1
+--- FAIL  ::addNums2/1 (0.00s)
           (1) got: 5, want: 18
-=== RUN   ::addNums3
---- FAIL  ::addNums3 (0.00s)
+=== RUN   ::addNums3/1
+--- FAIL  ::addNums3/1 (0.00s)
           (0) got: 16, want: 15
           (2) got: 6, want: 7
-=== RUN   ::addNums4
---- PASS  ::addNums4 (0.00s)
-=== RUN   ::addNums5
---- FAIL  ::addNums5 (0.00s)
+=== RUN   ::addNums4/1
+--- PASS  ::addNums4/1 (0.00s)
+=== RUN   ::addNums5/1
+--- FAIL  ::addNums5/1 (0.00s)
           (1) got: 5, want: 18
-=== RUN   ::subNums
---- PASS  ::subNums (0.00s)
-=== RUN   ::aTestNamespace::cmdA
---- PASS  ::aTestNamespace::cmdA (0.00s)
-=== RUN   ::aTestNamespace::cmdB
---- PASS  ::aTestNamespace::cmdB (0.00s)
-=== RUN   ::aTestNamespace::cmdC
---- PASS  ::aTestNamespace::cmdC (0.00s)
-=== RUN   ::dTestNamespace::cmdA
---- PASS  ::dTestNamespace::cmdA (0.00s)
+=== RUN   ::subNums/1
+--- PASS  ::subNums/1 (0.00s)
+=== RUN   ::aTestNamespace::cmdA/1
+--- PASS  ::aTestNamespace::cmdA/1 (0.00s)
+=== RUN   ::aTestNamespace::cmdB/1
+--- PASS  ::aTestNamespace::cmdB/1 (0.00s)
+=== RUN   ::aTestNamespace::cmdC/1
+--- PASS  ::aTestNamespace::cmdC/1 (0.00s)
+=== RUN   ::dTestNamespace::cmdA/1
+--- PASS  ::dTestNamespace::cmdA/1 (0.00s)
 
 Total: 9,  Passed: 6,  Skipped: 0,  Failed: 3
 } -result [dict create total 9 passed 6 skipped 0 failed 3]
@@ -445,21 +445,21 @@ Total: 9,  Passed: 6,  Skipped: 0,  Failed: 3
 
 test runTests-6 {Just test certain tests using -match} -body {
   xproc::runTests -verbose 2 -match {*::M* ::ad*ums4 *2 ::aTest*}
-} -output {=== RUN   ::addNums2
---- FAIL  ::addNums2 (0.00s)
+} -output {=== RUN   ::addNums2/1
+--- FAIL  ::addNums2/1 (0.00s)
           (1) got: 5, want: 18
-=== SKIP   ::addNums3
-=== RUN   ::addNums4
---- PASS  ::addNums4 (0.00s)
-=== SKIP   ::addNums5
-=== SKIP   ::subNums
-=== RUN   ::aTestNamespace::cmdA
---- PASS  ::aTestNamespace::cmdA (0.00s)
-=== RUN   ::aTestNamespace::cmdB
---- PASS  ::aTestNamespace::cmdB (0.00s)
-=== RUN   ::aTestNamespace::cmdC
---- PASS  ::aTestNamespace::cmdC (0.00s)
-=== SKIP   ::dTestNamespace::cmdA
+=== SKIP   ::addNums3/1
+=== RUN   ::addNums4/1
+--- PASS  ::addNums4/1 (0.00s)
+=== SKIP   ::addNums5/1
+=== SKIP   ::subNums/1
+=== RUN   ::aTestNamespace::cmdA/1
+--- PASS  ::aTestNamespace::cmdA/1 (0.00s)
+=== RUN   ::aTestNamespace::cmdB/1
+--- PASS  ::aTestNamespace::cmdB/1 (0.00s)
+=== RUN   ::aTestNamespace::cmdC/1
+--- PASS  ::aTestNamespace::cmdC/1 (0.00s)
+=== SKIP   ::dTestNamespace::cmdA/1
 
 Total: 9,  Passed: 4,  Skipped: 4,  Failed: 1
 } -result [dict create total 9 passed 4 skipped 4 failed 1]

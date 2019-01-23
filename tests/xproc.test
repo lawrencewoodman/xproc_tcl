@@ -63,7 +63,7 @@ xproc::test xproc::proc {{t} {
 }}
 
 
-xproc::test xproc::remove {{t} {
+xproc::test -id 1 xproc::remove {{t} {
   # Check errors
   set cases {
     {input {all -fred}
@@ -74,7 +74,9 @@ xproc::test xproc::remove {{t} {
   xproc::testCases $t $cases {{case} {
     dict with case {xproc::remove {*}$input}
   }}
+}}
 
+xproc::test -id 2 xproc::remove {{t} {
   try {
     for {set n 1} {$n <= 3} {incr n} {
       xproc::proc xproc::Dummy-$n {a b} {
@@ -91,7 +93,8 @@ xproc::test xproc::remove {{t} {
     set gotSummary [xproc::runTests -match {::xproc::Dummy-*} -verbose 0]
     dict with gotSummary {
       if {$passed != 2 || $failed != 0 || $total < 5 || $total > 100} {
-        $t fail "after remove tests Dummy-2 - summary incorrect - got: $gotSummary"
+        xproc::fail $t \
+            "after remove tests Dummy-2 - summary incorrect - got: $gotSummary"
       }
     }
     xproc::remove descriptions -match {*Dummy-3}
@@ -106,7 +109,7 @@ xproc::test xproc::remove {{t} {
     set gotSummary [xproc::runTests -match {::xproc::Dummy-*} -verbose 0]
     dict with gotSummary {
       if {$passed != 0 || $failed != 0 || $total < 5 || $total > 100} {
-        xproc::fail $t
+        xproc::fail $t \
             "after remove all Dummy-* - summary incorrect - got: $gotSummary"
       }
     }
@@ -222,7 +225,7 @@ xproc::test xproc::tests {{t} {
 test runTests-1 {Test ::xproc::test tests} -body {
   xproc::runTests -match {*::xproc*}
 } -output {
-Total: 14,  Passed: 14,  Skipped: 0,  Failed: 0
-} -result {total 14 passed 14 skipped 0 failed 0}
+Total: 15,  Passed: 15,  Skipped: 0,  Failed: 0
+} -result {total 15 passed 15 skipped 0 failed 0}
 
 cleanupTests

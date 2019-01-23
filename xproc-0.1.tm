@@ -78,15 +78,38 @@ proc xproc::remove {type args} {
 }
 
 
-proc xproc::test {procName lambda} {
+proc xproc::test {args} {
   variable tests
+  array set options {id 1}
+  while {[llength $args]} {
+    switch -glob -- [lindex $args 0] {
+      -id {set args [lassign $args - options(id)]}
+      --      {set args [lrange $args 1 end] ; break}
+      -*      {return -code error "unknown option: [lindex $args 0]"}
+      default break
+    }
+  }
+  if {![string is integer $options(id)] || $options(id) < 1} {
+    return -code error "invalid id: $options(id)"
+  }
+  if {[llength $args] != 2} {
+    return -code error "invalid number of arguments"
+  }
+
+  lassign $args procName lambda
+
   set fullProcName [
     uplevel 1 [list namespace which -command $procName]
   ]
   if {$fullProcName eq ""} {
     return -code error "procedureName doesn't exist: $procName"
   }
-  dict set tests $fullProcName [dict create lambda $lambda]
+
+  if {[dict exists $tests $fullProcName $options(id)]} {
+    return -code error "id already exists: $options(id)"
+  }
+
+  dict set tests $fullProcName $options(id) [dict create lambda $lambda]
 }
 
 
@@ -118,50 +141,12 @@ proc xproc::runTests {args} {
   if {[llength $args] > 0} {
     return -code error "invalid number of arguments"
   }
-
   set newTests [
-    dict map {procName test} $tests {
-      dict set test skip false
-      dict set test fail false
-      if {![MatchProcName $options(match) $procName]} {
-        dict set test skip true
-        if {$options(verbose) >= 2} {
-          puts $options(channel) "=== SKIP   $procName"
-        }
-      } else {
-        set testRun [TestRun new]
-        if {$options(verbose) >= 2} {
-          puts $options(channel) "=== RUN   $procName"
-        }
-        set timeStart [clock microseconds]
-        try {
-          uplevel 1 [list apply [dict get $test lambda] $testRun]
-        } on error {result returnOptions} {
-          set errorInfo [dict get $returnOptions -errorinfo]
-          fail $testRun $errorInfo
-        }
-        set secondsElapsed [
-          expr {([clock microseconds] - $timeStart)/1000000.}
-        ]
-        if {[TestRun hasFailed $testRun]} {
-          if {$options(verbose) >= 1} {
-            puts $options(channel) [
-              format {--- FAIL  %s (%0.2fs)} $procName $secondsElapsed
-            ]
-            foreach msg [TestRun failMessages $testRun] {
-              puts $options(channel) [IndentEachLine $msg 10 0]
-            }
-          }
-        } else {
-          if {$options(verbose) >= 2} {
-            puts $options(channel) [
-              format {--- PASS  %s (%0.2fs)} $procName $secondsElapsed
-            ]
-          }
-        }
-        dict set test fail [TestRun hasFailed $testRun]
+    dict map {procName procTests} $tests {
+      dict map {id test} $procTests {
+        RunTest $procName $test $id $options(verbose) \
+                $options(channel) $options(match)
       }
-      set test
     }
   ]
   set tests $newTests
@@ -300,6 +285,54 @@ proc xproc::TestRun::hasFailed {testRun} {
 # Unexported commands
 ###########################
 
+proc xproc::RunTest {procName test id verbose channel match} {
+  dict set test skip false
+  dict set test fail false
+
+  # TODO: This isn't great as checking for each id-test
+  if {![MatchProcName $match $procName]} {
+    dict set test skip true
+    if {$verbose >= 2} {
+      puts $channel "=== SKIP   $procName/$id"
+    }
+    return $test
+  }
+
+  set testRun [TestRun new]
+  if {$verbose >= 2} {
+    puts $channel "=== RUN   $procName/$id"
+  }
+  set timeStart [clock microseconds]
+  try {
+    uplevel 1 [list apply [dict get $test lambda] $testRun]
+  } on error {result returnOptions} {
+    set errorInfo [dict get $returnOptions -errorinfo]
+    fail $testRun $errorInfo
+  }
+  set secondsElapsed [
+    expr {([clock microseconds] - $timeStart)/1000000.}
+  ]
+  if {[TestRun hasFailed $testRun]} {
+    if {$verbose >= 1} {
+      puts $channel [
+        format {--- FAIL  %s/%s (%0.2fs)} $procName $id $secondsElapsed
+      ]
+      foreach msg [TestRun failMessages $testRun] {
+        puts $channel [IndentEachLine $msg 10 0]
+      }
+    }
+  } else {
+    if {$verbose >= 2} {
+      puts $channel [
+        format {--- PASS  %s/%s (%0.2fs)} $procName $id $secondsElapsed
+      ]
+    }
+  }
+  dict set test fail [TestRun hasFailed $testRun]
+  return $test
+}
+
+
 xproc::proc xproc::ReturnCodeToValue {code} {
   set returnCodeValues {ok 0 error 1 return 2 break 3 continue 4}
   if {[dict exists $returnCodeValues $code]} {
@@ -324,12 +357,15 @@ xproc::proc xproc::ReturnCodeToValue {code} {
 
 
 xproc::proc xproc::MakeSummary {tests} {
-  set total [llength [dict keys $tests]]
+  set total 0
   set failed 0
   set skipped 0
-  dict for {procName test} $tests {
-    if {[dict get $test fail]} {incr failed}
-    if {[dict get $test skip]} {incr skipped}
+  dict for {procName procTests} $tests {
+    dict for {id test} $procTests {
+      incr total
+      if {[dict get $test fail]} {incr failed}
+      if {[dict get $test skip]} {incr skipped}
+    }
   }
   set passed [expr {($total-$failed)-$skipped}]
   return [dict create \
@@ -338,28 +374,34 @@ xproc::proc xproc::MakeSummary {tests} {
   set cases [list \
     [dict create input {} \
      result [dict create total 0 passed 0 skipped 0 failed 0]] \
-    [dict create input {name-1 {skip false fail true}} \
+    [dict create input {name-1 {0 {skip false fail true}}} \
      result [dict create total 1 passed 0 skipped 0 failed 1]] \
-    [dict create input {name-1 {skip false fail false}} \
+    [dict create input {name-1 {0 {skip false fail false}}} \
      result [dict create total 1 passed 1 skipped 0 failed 0]] \
-    [dict create input {name-1 {skip false fail false} \
-                        name-2 {skip false fail false}} \
+    [dict create input {name-1 {0 {skip false fail false}} \
+                        name-2 {0 {skip false fail false}}} \
      result [dict create total 2 passed 2 skipped 0 failed 0]] \
-    [dict create input {name-1 {skip false fail true} \
-                        name-2 {skip false fail false}} \
+    [dict create input {name-1 {0 {skip false fail true}} \
+                        name-2 {0 {skip false fail false}}} \
      result [dict create total 2 passed 1 skipped 0 failed 1]] \
-    [dict create input {name-1 {skip false fail false} \
-                        name-2 {skip false fail true}} \
+    [dict create input {name-1 {0 {skip false fail false}} \
+                        name-2 {0 {skip false fail true}}} \
      result [dict create total 2 passed 1 skipped 0 failed 1]] \
-    [dict create input {name-1 {skip false fail true} \
-                        name-2 {skip false fail true}} \
+    [dict create input {name-1 {0 {skip false fail true}} \
+                        name-2 {0 {skip false fail true}}} \
      result [dict create total 2 passed 0 skipped 0 failed 2]] \
-    [dict create input {name-1 {skip true fail false} \
-                        name-2 {skip false fail true}} \
+    [dict create input {name-1 {0 {skip true fail false}} \
+                        name-2 {0 {skip false fail true}}} \
      result [dict create total 2 passed 0 skipped 1 failed 1]] \
-    [dict create input {name-1 {skip true fail false} \
-                        name-2 {skip true fail false}} \
+    [dict create input {name-1 {0 {skip true fail false}} \
+                        name-2 {0 {skip true fail false}}} \
      result [dict create total 2 passed 0 skipped 2 failed 0]] \
+    [dict create input [
+      dict create name-1 [dict create 0 {skip true fail false} \
+                                      1 {skip false fail true}] \
+                  name-2 [dict create 0 {skip true fail false} \
+                                      1 {skip false fail false}] \
+      ] result [dict create total 4 passed 1 skipped 2 failed 1]] \
   ]
   xproc::testCases $t $cases {{case} {
     dict with case {xproc::MakeSummary $input}
@@ -642,7 +684,12 @@ xproc::describe xproc::fail {
 xproc::describe xproc::test {
   Record the given lambda to test a procedure
 
-  xproc::test procedureName lambda
+  xproc::test ?switches? procedureName lambda
+
+  The switches do the following:
+    -id id    Give an id to the test to allow multiple tests
+              for a procedureName.  The default is 0.
+    --        Marks the end of switches
 
   The lambda has one parameter which is the testRun
 }
