@@ -47,3 +47,6 @@ proc TestHelpers::ChannelMonitor::getWriteData {channelID} {
   return [dict get $channels $channelID writeData]
 }
 
+proc TestHelpers::addNums {args} {
+  return [::tcl::mathop::+ {*}$args]
+}

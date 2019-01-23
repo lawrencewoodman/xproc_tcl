@@ -106,7 +106,7 @@ proc xproc::test {args} {
   }
 
   if {[dict exists $tests $fullProcName $options(id)]} {
-    return -code error "id already exists: $options(id)"
+    return -code error "test already exists for id: $options(id)"
   }
 
   dict set tests $fullProcName $options(id) [dict create lambda $lambda]
