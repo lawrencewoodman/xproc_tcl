@@ -851,6 +851,6 @@ xproc::describe xproc::tests {
     -match patternList    Matches procedureNames against patterns in
                           patternList, the default is {"*"}
 
-  The return value is a dictionary with the procedureNames as the
-  key.
+  The return value is a list of tests.  Each test is a dictionary
+  containing information about the test.
 }
