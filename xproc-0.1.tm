@@ -84,23 +84,34 @@ proc xproc::test {args} {
   while {[llength $args]} {
     switch -glob -- [lindex $args 0] {
       -id {set args [lassign $args - options(id)]}
+      -interp {set args [lassign $args - options(interp)]}
       --      {set args [lrange $args 1 end] ; break}
       -*      {return -code error "unknown option: [lindex $args 0]"}
       default break
     }
   }
+  if {[llength $args] != 2} {
+    return -code error "invalid number of arguments"
+  }
   if {![string is integer $options(id)] || $options(id) < 1} {
     return -code error "invalid id: $options(id)"
   }
-  if {[llength $args] != 2} {
-    return -code error "invalid number of arguments"
+  if {[info exists options(interp)] && ![interp exists $options(interp)]} {
+    return -code error "interpreter doesn't exist: $options(interp)"
   }
 
   lassign $args procName lambda
 
-  set fullProcName [
-    uplevel 1 [list namespace which -command $procName]
-  ]
+  if {[info exists options(interp)]} {
+    set fullProcName [
+      $options(interp) eval [list namespace which -command $procName]
+    ]
+  } else {
+    set fullProcName [
+      uplevel 1 [list namespace which -command $procName]
+    ]
+  }
+
   if {$fullProcName eq ""} {
     return -code error "procedureName doesn't exist: $procName"
   }
@@ -132,6 +143,7 @@ proc xproc::runTests {args} {
   while {[llength $args]} {
     switch -glob -- [lindex $args 0] {
       -channel {set args [lassign $args - options(channel)]}
+      -interp {set args [lassign $args - options(interp)]}
       -match {set args [lassign $args - options(match)]}
       -verbose {set args [lassign $args - options(verbose)]}
       -*      {return -code error "unknown option: [lindex $args 0]"}
@@ -141,11 +153,20 @@ proc xproc::runTests {args} {
   if {[llength $args] > 0} {
     return -code error "invalid number of arguments"
   }
+  if {[info exists options(interp)] && ![interp exists $options(interp)]} {
+    return -code error "interpreter doesn't exist: $options(interp)"
+  }
+
   set newTests [
     dict map {procName procTests} $tests {
       dict map {id test} $procTests {
-        RunTest $procName $test $id $options(verbose) \
-                $options(channel) $options(match)
+        if {[info exists options(interp)]} {
+          RunTest $procName $test $id $options(verbose) \
+                  $options(channel) $options(match) $options(interp)
+        } else {
+          RunTest $procName $test $id $options(verbose) \
+                  $options(channel) $options(match)
+        }
       }
     }
   ]
@@ -201,7 +222,24 @@ proc xproc::tests {args} {
 }
 
 
-proc xproc::testCases {testRun cases lambda} {
+proc xproc::testCases {args} {
+  array set options {id 1}
+  while {[llength $args]} {
+    switch -glob -- [lindex $args 0] {
+      -interp {set args [lassign $args - options(interp)]}
+      --      {set args [lrange $args 1 end] ; break}
+      -*      {return -code error "unknown option: [lindex $args 0]"}
+      default break
+    }
+  }
+  if {[llength $args] != 3} {
+    return -code error "invalid number of arguments"
+  }
+  if {[info exists options(interp)] && ![interp exists $options(interp)]} {
+    return -code error "interpreter doesn't exist: $options(interp)"
+  }
+  lassign $args testRun cases lambda
+
   set i 0
   foreach case $cases {
     set returnCodes {ok return}
@@ -210,7 +248,11 @@ proc xproc::testCases {testRun cases lambda} {
     }
     set returnCodes [lmap code $returnCodes {ReturnCodeToValue $code}]
     try {
-      set got [uplevel 1 [list apply $lambda $case]]
+      if {[info exists options(interp)]} {
+        set got [$options(interp) eval [list apply $lambda $case]]
+      } else {
+        set got [uplevel 1 [list apply $lambda $case]]
+      }
       if {[dict exists $case result]} {
         set result [dict get $case result]
         if {$got ne $result} {
@@ -285,7 +327,7 @@ proc xproc::TestRun::hasFailed {testRun} {
 }
 
 
-proc xproc::RunTest {procName test id verbose channel match} {
+proc xproc::RunTest {procName test id verbose channel match {interp {}}} {
   dict set test skip false
   dict set test fail false
 
@@ -304,7 +346,11 @@ proc xproc::RunTest {procName test id verbose channel match} {
   }
   set timeStart [clock microseconds]
   try {
-    uplevel 1 [list apply [dict get $test lambda] $testRun]
+    if {$interp ne {}} {
+      $interp eval [list apply [dict get $test lambda] $testRun]
+    } else {
+      uplevel 1 [list apply [dict get $test lambda] $testRun]
+    }
   } on error {result returnOptions} {
     set errorInfo [dict get $returnOptions -errorinfo]
     fail $testRun $errorInfo
@@ -656,7 +702,12 @@ xproc::describe xproc::remove {
 xproc::describe xproc::testCases {
   Test the supplied test cases within a test lambda
 
-  xproc::testCases testRun cases lambda
+  xproc::testCases ?switches? testRun cases lambda
+
+  The switches do the following:
+    -interp path   Creates the test for a procedure in interpreter path.
+                   The default is the current interpreter.
+    --             Marks the end of switches
 
   The testRun is passed through a test lambda defined with xproc::test
   or using -test with xproc::proc.
@@ -687,9 +738,11 @@ xproc::describe xproc::test {
   xproc::test ?switches? procedureName lambda
 
   The switches do the following:
-    -id id    Give an id to the test to allow multiple tests
-              for a procedureName.  The default is 1.
-    --        Marks the end of switches
+    -id id         Give an id to the test to allow multiple tests
+                   for a procedureName.  The default is 1.
+    -interp path   Creates the test for a procedure in interpreter path.
+                   The default is the current interpreter.
+    --             Marks the end of switches
 
   The lambda has one parameter which is the testRun
 }
@@ -710,6 +763,8 @@ xproc::describe xproc::runTests {
 
   The switches do the following:
     -channel channelID    A channel to send output to. The default is stdout.
+    -interp path          Creates the test for a procedure in interpreter
+                          path.  The default is the current interpreter.
     -match patternList    Matches procedureNames against patterns in
                           patternList, the default is {"*"}
     -verbose level        Controls the level of output to stdout:

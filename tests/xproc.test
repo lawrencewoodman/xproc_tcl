@@ -155,7 +155,7 @@ xproc::test -id 1 xproc::test {{t} {
 }}
 
 xproc::test -id 2 xproc::test {{t} {
-  # Test adding of tests
+  # Test adding of tests using -id
   xproc::test -- ::TestHelpers::addNums {{t} {
     set got [::TestHelpers::addNums 7 8 9]
     set want 24
@@ -383,6 +383,7 @@ xproc::test -id 5 xproc::runTests {{t} {
   }
 }}
 
+
 xproc::test -id 6 xproc::runTests {{t} {
   # Check correct fail output for different sorts of errors
   xproc::test ::TestHelpers::raiseErrorCmd {{t} {
@@ -481,6 +482,47 @@ xproc::test -id 6 xproc::runTests {{t} {
   } finally {
     xproc::remove all -match {*TestHelpers::addNums *TestHelpers::waitMS}
     close $ch
+  }
+}}
+
+
+xproc::test -id 7 xproc::runTests {{t} {
+  # Test -interp
+  set safeInterp [interp create -safe]
+  $safeInterp alias test ::xproc::test -interp $safeInterp
+  $safeInterp alias testFail ::xproc::fail
+  $safeInterp alias testCases ::xproc::testCases -interp $safeInterp
+
+  $safeInterp eval {
+    proc add5 {n} {
+      expr {$n+5}
+    }
+    test -id 1 add5 {{t} {
+      set cases {
+        {input {3} result {8}}
+        {input {10} result {15}}
+      }
+      testCases $t $cases {{case} {dict with case {add5 $input}}}
+    }}
+    test -id 2 add5 {{t} {
+      testFail $t "this is a fail message"
+    }}
+  }
+  try {
+    set summary [xproc::runTests -verbose 0 -interp $safeInterp -match {*add5}]
+    set wantPassed 1
+    set wantFailed 1
+    dict with summary {
+      if {$passed != $wantPassed} {
+        xproc::fail $t "got passed: $passed, want: $wantPassed"
+      }
+      if {$failed != $wantFailed} {
+        xproc::fail $t "got failed: $failed, want: $wantFailed"
+      }
+    }
+  } finally {
+    interp delete $safeInterp
+    xproc::remove all -match {*add5}
   }
 }}
 
