@@ -148,6 +148,9 @@ xproc::test -id 1 xproc::test {{t} {
     {input {-id 1 xproc::test {{t} {}}}
      returnCodes {error}
      result {test already exists for id: 1}}
+    {input {-interp "*" xproc::test {{t} {}}}
+     returnCodes {error}
+     result {interpreter doesn't exist: *}}
   }
   xproc::testCases $t $cases {{case} {
     dict with case {xproc::test {*}$input}
@@ -188,11 +191,11 @@ xproc::test -id 1 xproc::runTests {{t} {
   # Run all xproc tests except this one to prevent an infinite loop
   set ch [TestHelpers::channelMonitor new]
   set tests [
-    dict filter [xproc::tests -match {*xproc::*}] script {k v} {
-      expr {![string match "*xproc::runTests" $k]}
-    }
+    xproc::LFilter {} [xproc::tests -match {*xproc::*}] {{vars test} {
+      expr {![string match "*xproc::runTests" [dict get $test name]]}
+    }}
   ]
-  set procNames [dict keys $tests]
+  set procNames [lmap test $tests {dict get $test name}]
   set summary [xproc::runTests -verbose 1 -channel $ch -match $procNames]
   dict with summary {
     set wantTotal [expr {$passed+$failed+$skipped}]
@@ -510,9 +513,13 @@ xproc::test -id 7 xproc::runTests {{t} {
   }
   try {
     set summary [xproc::runTests -verbose 0 -interp $safeInterp -match {*add5}]
+    set wantTotal 2
     set wantPassed 1
     set wantFailed 1
     dict with summary {
+      if {$total != $wantTotal} {
+        xproc::fail $t "got total: $total, want: $wantTotal"
+      }
       if {$passed != $wantPassed} {
         xproc::fail $t "got passed: $passed, want: $wantPassed"
       }
@@ -601,22 +608,68 @@ xproc::test xproc::describe {{t} {
 }}
 
 
-xproc::test xproc::tests {{t} {
+xproc::test -id 1 xproc::tests {{t} {
   set cases {
-    {input {-match {*xproc::tests *xproc::test}} minNum 2 maxNum 2}
+    {input {-match {*xproc::tests *xproc::test}} minNum 5 maxNum 5}
     {input {-match {*xproc*}} minNum 5 maxNum 100}
-    {input {} minNum 5 maxNum 25}
+    {input {} minNum 5 maxNum 30}
   }
   xproc::testCases $t $cases {{case} {
     dict with case {
       set got [xproc::tests {*}$input]
-      set numGot [dict size $got]
+      set numGot [llength $got]
       if {$numGot < $minNum || $numGot > $maxNum} {
         return -code error \
             "got num tests: $numGot, want >= $minNum && <= $maxNum"
       }
     }
   }}
+}}
+
+
+xproc::test -id 2 xproc::tests {{t} {
+  # Test errors
+  set cases {
+    {input {fred} returnCodes {error} result {invalid number of arguments}}
+    {input {-bob} returnCodes {error} result {unknown option: -bob}}
+  }
+  xproc::testCases $t $cases {{case} {
+    dict with case {xproc::tests {*}$input}
+  }}
+}}
+
+
+xproc::test -id 3 xproc::tests {{t} {
+  # Test -interp
+  set safeInterp [interp create -safe]
+  $safeInterp alias test ::xproc::test -interp $safeInterp
+  $safeInterp alias testFail ::xproc::fail
+  $safeInterp alias testCases ::xproc::testCases -interp $safeInterp
+
+  $safeInterp eval {
+    proc add5 {n} {
+      expr {$n+5}
+    }
+    test -id 1 add5 {{t} {
+      set cases {
+        {input {3} result {8}}
+        {input {10} result {15}}
+      }
+      testCases $t $cases {{case} {dict with case {add5 $input}}}
+    }}
+    test -id 2 add5 {{t} {
+      testFail $t "this is a fail message"
+    }}
+  }
+  try {
+    set got [xproc::tests -interp $safeInterp]
+    if {[llength $got] != 2} {
+      xproc::fail $t "got num tests: [llength $got], want: 2"
+    }
+  } finally {
+    interp delete $safeInterp
+    xproc::remove all -match {*add5}
+  }
 }}
 
 

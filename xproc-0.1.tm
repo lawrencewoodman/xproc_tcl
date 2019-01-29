@@ -59,19 +59,25 @@ proc xproc::remove {type args} {
   if {[llength $args] > 0} {
     return -code error "invalid number of arguments"
   }
-  set filterLambda {{matchPatterns d} {
-    dict filter $d script {procName -} {
-      expr {![MatchProcName $matchPatterns $procName]}
-    }
-  } xproc}
+  set lambdaVars [dict create match $options(match)]
   switch $type {
-    tests {set tests [apply $filterLambda $options(match) $tests]}
+    tests {
+      set tests [
+        LFilter $lambdaVars $tests {{vars e} {
+          expr {![MatchProcName [dict get $vars match] [dict get $e name]]}
+        } xproc}
+      ]
+    }
     descriptions {
-      set descriptions [apply $filterLambda $options(match) $descriptions]
+      set descriptions [
+        dict filter $descriptions script {name desc} {
+          expr {![MatchProcName $options(match) $name]}
+        }
+      ]
     }
     all {
-      set tests [apply $filterLambda $options(match) $tests]
-      set descriptions [apply $filterLambda $options(match) $descriptions]
+      remove tests -match $options(match)
+      remove descriptions -match $options(match)
     }
     default {return -code error "unknown type: $type"}
   }
@@ -80,7 +86,7 @@ proc xproc::remove {type args} {
 
 proc xproc::test {args} {
   variable tests
-  array set options {id 1}
+  array set options {id 1 interp {}}
   while {[llength $args]} {
     switch -glob -- [lindex $args 0] {
       -id {set args [lassign $args - options(id)]}
@@ -96,19 +102,17 @@ proc xproc::test {args} {
   if {![string is integer $options(id)] || $options(id) < 1} {
     return -code error "invalid id: $options(id)"
   }
-  if {[info exists options(interp)] && ![interp exists $options(interp)]} {
+  if {![interp exists $options(interp)]} {
     return -code error "interpreter doesn't exist: $options(interp)"
   }
 
   lassign $args procName lambda
 
-  if {[info exists options(interp)]} {
-    set fullProcName [
-      $options(interp) eval [list namespace which -command $procName]
-    ]
+  if {$options(interp) eq {}} {
+    set fullProcName [uplevel 1 [list namespace which -command $procName]]
   } else {
     set fullProcName [
-      uplevel 1 [list namespace which -command $procName]
+      $options(interp) eval [list namespace which -command $procName]
     ]
   }
 
@@ -116,11 +120,14 @@ proc xproc::test {args} {
     return -code error "procedureName doesn't exist: $procName"
   }
 
-  if {[dict exists $tests $fullProcName $options(id)]} {
+  if {[TestExists $tests $options(interp) $fullProcName $options(id)]} {
     return -code error "test already exists for id: $options(id)"
   }
 
-  dict set tests $fullProcName $options(id) [dict create lambda $lambda]
+  lappend tests [
+    dict create interp $options(interp) \
+                name $fullProcName id $options(id) lambda $lambda
+  ]
 }
 
 
@@ -139,7 +146,7 @@ proc xproc::describe {procName description} {
 proc xproc::runTests {args} {
   variable tests
 
-  array set options {channel stdout match {"*"} verbose 1}
+  array set options {channel stdout match {"*"} verbose 1 interp {}}
   while {[llength $args]} {
     switch -glob -- [lindex $args 0] {
       -channel {set args [lassign $args - options(channel)]}
@@ -153,25 +160,17 @@ proc xproc::runTests {args} {
   if {[llength $args] > 0} {
     return -code error "invalid number of arguments"
   }
-  if {[info exists options(interp)] && ![interp exists $options(interp)]} {
+  if {![interp exists $options(interp)]} {
     return -code error "interpreter doesn't exist: $options(interp)"
   }
 
-  set newTests [
-    dict map {procName procTests} $tests {
-      dict map {id test} $procTests {
-        if {[info exists options(interp)]} {
-          RunTest $procName $test $id $options(verbose) \
-                  $options(channel) $options(match) $options(interp)
-        } else {
-          RunTest $procName $test $id $options(verbose) \
-                  $options(channel) $options(match)
-        }
-      }
+  set tests [
+    lmap test $tests {
+      RunTest $options(interp) $test $options(verbose) \
+              $options(channel) $options(match)
     }
   ]
-  set tests $newTests
-  set summary [MakeSummary $newTests]
+  set summary [MakeSummary $options(interp) $tests]
   if {$options(verbose) >= 1} {
     dict with summary {
       puts $options(channel) \
@@ -204,10 +203,11 @@ proc xproc::descriptions {args} {
 
 proc xproc::tests {args} {
   variable tests
-  array set options {match {"*"}}
+  array set options {match {"*"} interp {}}
   while {[llength $args]} {
     switch -glob -- [lindex $args 0] {
       -match {set args [lassign $args - options(match)]}
+      -interp {set args [lassign $args - options(interp)]}
       -*      {return -code error "unknown option: [lindex $args 0]"}
       default break
     }
@@ -216,9 +216,13 @@ proc xproc::tests {args} {
     return -code error "invalid number of arguments"
   }
 
-  dict filter $tests script {procName lambda} {
-    MatchProcName $options(match) $procName
-  }
+  set lambdaVars [dict create match $options(match) interp $options(interp)]
+  LFilter $lambdaVars $tests {{vars test} {
+    dict with test {
+      if {[dict get $vars interp] ne $interp} {return false}
+      MatchProcName [dict get $vars match] $name
+    }
+  } xproc}
 }
 
 
@@ -327,11 +331,14 @@ proc xproc::TestRun::hasFailed {testRun} {
 }
 
 
-proc xproc::RunTest {procName test id verbose channel match {interp {}}} {
+proc xproc::RunTest {interp test verbose channel match} {
   dict set test skip false
   dict set test fail false
-
-  # TODO: This isn't great as checking for each id-test
+  set procName [dict get $test name]
+  set id [dict get $test id]
+  if {$interp ne [dict get $test interp]} {
+    return $test
+  }
   if {![MatchProcName $match $procName]} {
     dict set test skip true
     if {$verbose >= 2} {
@@ -346,10 +353,12 @@ proc xproc::RunTest {procName test id verbose channel match {interp {}}} {
   }
   set timeStart [clock microseconds]
   try {
-    if {$interp ne {}} {
-      $interp eval [list apply [dict get $test lambda] $testRun]
-    } else {
-      uplevel 1 [list apply [dict get $test lambda] $testRun]
+    dict with test {
+      if {$interp ne {}} {
+        $interp eval [list apply $lambda $testRun]
+      } else {
+        uplevel 1 [list apply $lambda $testRun]
+      }
     }
   } on error {result returnOptions} {
     set errorInfo [dict get $returnOptions -errorinfo]
@@ -379,6 +388,41 @@ proc xproc::RunTest {procName test id verbose channel match {interp {}}} {
 }
 
 
+proc xproc::TestExists {tests interp name id} {
+  foreach test $tests {
+    set testInterp [dict get $test interp]
+    set testName [dict get $test name]
+    set testID [dict get $test id]
+    if {$testInterp eq $interp && $testName eq $name && $testID == $id} {
+      return true
+    }
+  }
+  return false
+}
+
+
+xproc::proc xproc::LFilter {vars list lambda} {
+  set result {}
+  foreach e $list {
+    if {[uplevel 1 [list apply $lambda $vars $e]]} {
+      lappend result $e
+    }
+  }
+  return $result
+} -test {{t} {
+  set cases {
+    {input {{} {1 2 3 4} {{vars e} {expr {$e != 3}}}} result {1 2 4}}
+    {input {{} {} {{vars e} {expr {$e != 3}}}} result {}}
+    {input {{n 1} {1 2 3 4} {{vars e} {
+      expr {$e != [dict get $vars n]}
+    }}} result {2 3 4}}
+  }
+  xproc::testCases $t $cases {{case} {
+    dict with case {xproc::LFilter {*}$input}
+  }}
+}}
+
+
 xproc::proc xproc::ReturnCodeToValue {code} {
   set returnCodeValues {ok 0 error 1 return 2 break 3 continue 4}
   if {[dict exists $returnCodeValues $code]} {
@@ -402,55 +446,65 @@ xproc::proc xproc::ReturnCodeToValue {code} {
 }}
 
 
-xproc::proc xproc::MakeSummary {tests} {
+xproc::proc xproc::MakeSummary {interp tests} {
   set total 0
   set failed 0
   set skipped 0
-  dict for {procName procTests} $tests {
-    dict for {id test} $procTests {
+  foreach test $tests {
+    if {[dict get $test interp] eq $interp} {
       incr total
       if {[dict get $test fail]} {incr failed}
       if {[dict get $test skip]} {incr skipped}
     }
   }
   set passed [expr {($total-$failed)-$skipped}]
-  return [dict create \
-               total $total passed $passed skipped $skipped failed $failed]
+  return [
+    dict create total $total passed $passed skipped $skipped failed $failed
+  ]
 } -test {{t} {
   set cases [list \
-    [dict create input {} \
+    [dict create input {{} {}} \
      result [dict create total 0 passed 0 skipped 0 failed 0]] \
-    [dict create input {name-1 {0 {skip false fail true}}} \
+    [dict create input {{} {{interp {} name name-1 id 0 skip false fail true}}} \
      result [dict create total 1 passed 0 skipped 0 failed 1]] \
-    [dict create input {name-1 {0 {skip false fail false}}} \
+    [dict create input {{} {{interp {} name name-1 id 0 skip false fail false}}} \
      result [dict create total 1 passed 1 skipped 0 failed 0]] \
-    [dict create input {name-1 {0 {skip false fail false}} \
-                        name-2 {0 {skip false fail false}}} \
+    [dict create input {{} {{interp {} name name-1 id 0 skip false fail false} \
+                        {interp {} name name-2 id 0 skip false fail false}}} \
      result [dict create total 2 passed 2 skipped 0 failed 0]] \
-    [dict create input {name-1 {0 {skip false fail true}} \
-                        name-2 {0 {skip false fail false}}} \
+    [dict create input {{} {{interp {} name name-1 id 0 skip false fail true} \
+                        {interp {} name name-2 id 0 skip false fail false}}} \
      result [dict create total 2 passed 1 skipped 0 failed 1]] \
-    [dict create input {name-1 {0 {skip false fail false}} \
-                        name-2 {0 {skip false fail true}}} \
+    [dict create input {{} {{interp {} name name-1 id 0 skip false fail false} \
+                        {interp {} name name-2 id 0 skip false fail true}}} \
      result [dict create total 2 passed 1 skipped 0 failed 1]] \
-    [dict create input {name-1 {0 {skip false fail true}} \
-                        name-2 {0 {skip false fail true}}} \
+    [dict create input {{} {{interp {} name name-1 id 0 skip false fail true} \
+                        {interp {} name name-2 id 0 skip false fail true}}} \
      result [dict create total 2 passed 0 skipped 0 failed 2]] \
-    [dict create input {name-1 {0 {skip true fail false}} \
-                        name-2 {0 {skip false fail true}}} \
+    [dict create input {{} {{interp {} name name-1 id 0 skip true fail false} \
+                        {interp {} name name-2 id 0 skip false fail true}}} \
      result [dict create total 2 passed 0 skipped 1 failed 1]] \
-    [dict create input {name-1 {0 {skip true fail false}} \
-                        name-2 {0 {skip true fail false}}} \
+    [dict create input {{} {{interp {} name name-1 id 0 skip true fail false} \
+                        {interp {} name name-2 id 0 skip true fail false}}} \
      result [dict create total 2 passed 0 skipped 2 failed 0]] \
-    [dict create input [
-      dict create name-1 [dict create 0 {skip true fail false} \
-                                      1 {skip false fail true}] \
-                  name-2 [dict create 0 {skip true fail false} \
-                                      1 {skip false fail false}] \
-      ] result [dict create total 4 passed 1 skipped 2 failed 1]] \
+    [dict create input {{} {{interp {} name name-1 id 0 skip true fail false} \
+                        {interp {} name name-1 id 1 skip false fail true} \
+                        {interp {} name name-2 id 0 skip true fail false} \
+                        {interp {} name name-2 id 1 skip false fail false}}} \
+     result [dict create total 4 passed 1 skipped 2 failed 1]] \
+    [dict create input {{} {{interp {} name name-1 id 0 skip true fail false} \
+                        {interp {} name name-1 id 1 skip false fail true} \
+                        {interp interp1 name name-2 id 0 skip true fail false} \
+                        {interp {} name name-2 id 1 skip false fail false}}} \
+     result [dict create total 3 passed 1 skipped 1 failed 1]] \
+    [dict create input {interp1 {{interp {} name name-1 id 0 skip true fail false} \
+                        {interp {} name name-1 id 1 skip false fail true} \
+                        {interp interp1 name name-2 id 0 skip true fail false} \
+                        {interp {} name name-2 id 1 skip false fail false}}} \
+     result [dict create total 1 passed 0 skipped 1 failed 0]] \
   ]
   xproc::testCases $t $cases {{case} {
-    dict with case {xproc::MakeSummary $input}
+    dict with case {xproc::MakeSummary {*}$input}
   }}
 }}
 
