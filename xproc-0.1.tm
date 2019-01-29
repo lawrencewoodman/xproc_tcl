@@ -848,6 +848,8 @@ xproc::describe xproc::tests {
   xproc::tests ?-match patternList?
 
   There is one switch:
+    -interp path          Creates the test for a procedure in interpreter path.
+                          The default is the current interpreter.
     -match patternList    Matches procedureNames against patterns in
                           patternList, the default is {"*"}
 
