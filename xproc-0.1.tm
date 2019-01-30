@@ -381,6 +381,10 @@ proc xproc::TestRun::new {} {
   return $n
 }
 
+proc xproc::TestRun::delete {testRun} {
+  dict unset runs $testRun
+}
+
 proc xproc::TestRun::fail {testRun msg} {
   variable runs
   set oldFailMessages [dict get $runs $testRun failMessages]
@@ -451,6 +455,7 @@ proc xproc::RunTest {interp test verbose channel match} {
     }
   }
   dict set test fail [TestRun hasFailed $testRun]
+  TestRun delete $testRun
   return $test
 }
 
