@@ -48,9 +48,10 @@ proc xproc::proc {procName procArgs procBody args} {
 proc xproc::remove {type args} {
   variable tests
   variable descriptions
-  array set options {match {"*"}}
+  array set options {match {"*"} interp {}}
   while {[llength $args]} {
     switch -glob -- [lindex $args 0] {
+      -interp {set args [lassign $args - options(interp)]}
       -match {set args [lassign $args - options(match)]}
       -*      {return -code error "unknown option: [lindex $args 0]"}
       default break
@@ -59,25 +60,32 @@ proc xproc::remove {type args} {
   if {[llength $args] > 0} {
     return -code error "invalid number of arguments"
   }
-  set lambdaVars [dict create match $options(match)]
+
+  set lambdaVars [dict create match $options(match) interp $options(interp)]
   switch $type {
     tests {
       set tests [
-        LFilter $lambdaVars $tests {{vars e} {
-          expr {![MatchProcName [dict get $vars match] [dict get $e name]]}
+        LFilter $lambdaVars $tests {{vars test} {
+          dict with test {
+            if {[dict get $vars interp] ne $interp} {return true}
+            expr {![MatchProcName [dict get $vars match] $name]}
+          }
         } xproc}
       ]
     }
     descriptions {
       set descriptions [
-        dict filter $descriptions script {name desc} {
-          expr {![MatchProcName $options(match) $name]}
-        }
+        LFilter $lambdaVars $descriptions {{vars description} {
+          set interp [dict get $description interp]
+          set name [dict get $description name]
+          if {[dict get $vars interp] ne $interp} {return true}
+          expr {![MatchProcName [dict get $vars match] $name]}
+        } xproc}
       ]
     }
     all {
-      remove tests -match $options(match)
-      remove descriptions -match $options(match)
+      remove tests -match $options(match) -interp $options(interp)
+      remove descriptions -match $options(match) -interp $options(interp)
     }
     default {return -code error "unknown type: $type"}
   }
@@ -121,7 +129,11 @@ proc xproc::test {args} {
   }
 
   if {[TestExists $tests $options(interp) $fullProcName $options(id)]} {
-    return -code error "test already exists for id: $options(id)"
+    if {$options(interp) eq {}} {
+      return -code error "test already exists for procedure: $fullProcName, id: $options(id)"
+    } else {
+      return -code error "test already exists for interp: $options(interp), procedure: $fullProcName, id: $options(id)"
+    }
   }
 
   lappend tests [
@@ -131,15 +143,49 @@ proc xproc::test {args} {
 }
 
 
-proc xproc::describe {procName description} {
+proc xproc::describe {args} {
   variable descriptions
-  set fullProcName [
-    uplevel 1 [list namespace which -command $procName]
-  ]
+  array set options {interp {}}
+  while {[llength $args]} {
+    switch -glob -- [lindex $args 0] {
+      -interp {set args [lassign $args - options(interp)]}
+      --      {set args [lrange $args 1 end] ; break}
+      -*      {return -code error "unknown option: [lindex $args 0]"}
+      default break
+    }
+  }
+  if {[llength $args] != 2} {
+    return -code error "invalid number of arguments"
+  }
+  if {![interp exists $options(interp)]} {
+    return -code error "interpreter doesn't exist: $options(interp)"
+  }
+  lassign $args procName description
+
+  if {$options(interp) eq {}} {
+    set fullProcName [uplevel 1 [list namespace which -command $procName]]
+  } else {
+    set fullProcName [
+      $options(interp) eval [list namespace which -command $procName]
+    ]
+  }
   if {$fullProcName eq ""} {
     return -code error "procedureName doesn't exist: $procName"
   }
-  dict set descriptions $fullProcName [TidyDescription $description]
+
+  if {[DescriptionExists $descriptions $options(interp) $fullProcName]} {
+    if {$options(interp) eq {}} {
+      return -code error "description already exists for procedure: $fullProcName"
+    } else {
+      return -code error "description already exists for interp: $options(interp), procedure: $fullProcName"
+    }
+  }
+
+  lappend descriptions [
+    dict create interp $options(interp) \
+                name $fullProcName \
+                description [TidyDescription $description]
+  ]
 }
 
 
@@ -183,9 +229,10 @@ proc xproc::runTests {args} {
 
 proc xproc::descriptions {args} {
   variable descriptions
-  array set options {match {"*"}}
+  array set options {match {"*"} interp {}}
   while {[llength $args]} {
     switch -glob -- [lindex $args 0] {
+      -interp {set args [lassign $args - options(interp)]}
       -match {set args [lassign $args - options(match)]}
       -*      {return -code error "unknown option: [lindex $args 0]"}
       default break
@@ -194,10 +241,17 @@ proc xproc::descriptions {args} {
   if {[llength $args] > 0} {
     return -code error "invalid number of arguments"
   }
-
-  dict filter $descriptions script {procName description} {
-    MatchProcName $options(match) $procName
+  if {![interp exists $options(interp)]} {
+    return -code error "interpreter doesn't exist: $options(interp)"
   }
+
+  set lambdaVars [dict create match $options(match) interp $options(interp)]
+  LFilter $lambdaVars $descriptions {{vars description} {
+    set interp [dict get $description interp]
+    set name [dict get $description name]
+    if {[dict get $vars interp] ne $interp} {return false}
+    MatchProcName [dict get $vars match] $name
+  } xproc}
 }
 
 
@@ -206,14 +260,17 @@ proc xproc::tests {args} {
   array set options {match {"*"} interp {}}
   while {[llength $args]} {
     switch -glob -- [lindex $args 0] {
-      -match {set args [lassign $args - options(match)]}
       -interp {set args [lassign $args - options(interp)]}
+      -match {set args [lassign $args - options(match)]}
       -*      {return -code error "unknown option: [lindex $args 0]"}
       default break
     }
   }
   if {[llength $args] > 0} {
     return -code error "invalid number of arguments"
+  }
+  if {![interp exists $options(interp)]} {
+    return -code error "interpreter doesn't exist: $options(interp)"
   }
 
   set lambdaVars [dict create match $options(match) interp $options(interp)]
@@ -394,6 +451,18 @@ proc xproc::TestExists {tests interp name id} {
     set testName [dict get $test name]
     set testID [dict get $test id]
     if {$testInterp eq $interp && $testName eq $name && $testID == $id} {
+      return true
+    }
+  }
+  return false
+}
+
+
+proc xproc::DescriptionExists {descriptions interp name} {
+  foreach description $descriptions {
+    set descriptionInterp [dict get $description interp]
+    set descriptionName [dict get $description name]
+    if {$descriptionInterp eq $interp && $descriptionName eq $name} {
       return true
     }
   }
@@ -741,14 +810,16 @@ xproc::describe xproc::proc {
 xproc::describe xproc::remove {
   Remove xproc functionality from procedures
 
-  xproc::remove type ?-match patternList?
+  xproc::remove type ?-interp path? ?-match patternList?
 
   The type can be one of:
     tests           Remove tests
     descriptions    Remove descriptions
     all             Remove all xproc functionality
 
-  There is one switch:
+  The switches do the following:
+    -interp path          Select only the procedures in interpreter path.
+                          The default is the current interpreter.
     -match patternList    Matches procedureNames against patterns in
                           patternList, the default is {"*"}
 }
@@ -804,7 +875,12 @@ xproc::describe xproc::test {
 xproc::describe xproc::describe {
   Record the given description for a procedure
 
-  xproc::describe procedureName description
+  xproc::describe ?switches? procedureName description
+
+  The switches do the following:
+    -interp path   Creates the description for a procedure in interpreter
+                   path.  The default is the current interpreter.
+    --             Marks the end of switches
 
   A description shouldn't contain tabs as it will cause text
   alignment issues.
@@ -813,7 +889,7 @@ xproc::describe xproc::describe {
 xproc::describe xproc::runTests {
   Run the tests recorded using xproc
 
-  xproc::runTests ?-verbose? ?-match patternList?
+  xproc::runTests ?switches?
 
   The switches do the following:
     -channel channelID    A channel to send output to. The default is stdout.
@@ -832,27 +908,39 @@ xproc::describe xproc::runTests {
 xproc::describe xproc::descriptions {
   Return the descriptions recorded using xproc
 
-  xproc::descriptions ?-match patternList?
+  xproc::descriptions ?-interp path? ?-match patternList?
 
-  There is one switch:
+  The switches do the following:
+    -interp path          Select only the description for procedures
+                          in interpreter path.
+                          The default is the current interpreter.
     -match patternList    Matches procedureNames against patterns in
                           patternList, the default is {"*"}
 
-  The return value is a dictionary with the procedureNames as the
-  key and the description as the value.
+  The return value is a list of descriptions.  Each discription is a
+  dictionary with at least the following keys:
+    interp        The interpreter within which the procedure exists
+                  that is being described
+    name          The full name of the procedure described
+    description   The description of the procedure
 }
 
 xproc::describe xproc::tests {
   Return the tests recorded using xproc
 
-  xproc::tests ?-match patternList?
+  xproc::tests ?switches?
 
-  There is one switch:
-    -interp path          Creates the test for a procedure in interpreter path.
+  The switches do the following:
+    -interp path          Select only the tests for procedures
+                          in interpreter path.
                           The default is the current interpreter.
     -match patternList    Matches procedureNames against patterns in
                           patternList, the default is {"*"}
 
   The return value is a list of tests.  Each test is a dictionary
-  containing information about the test.
+  containing at least the following keys:
+    interp        The interpreter within which the procedure exists
+                  that is being tested
+    name          The full name of the procedure being tested
+    id            The ID number of the test for the specified procedure
 }

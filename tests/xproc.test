@@ -40,8 +40,10 @@ xproc::test xproc::proc {{t} {
       dict with case {
         xproc::proc {*}$input
         set gotSummary [xproc::runTests -match {::xproc::Dummy-*} -verbose 0]
-        set wantDescriptions [
-          dict create ::xproc::Dummy-3 {Add two numbers together}
+        set wantDescriptions [list \
+          [dict create interp {} \
+                       name ::xproc::Dummy-3 \
+                       description {Add two numbers together}]
         ]
         dict with gotSummary {
           if {$passed != $passed || $failed != $failed ||
@@ -99,7 +101,9 @@ xproc::test -id 2 xproc::remove {{t} {
     }
     xproc::remove descriptions -match {*Dummy-3}
     set gotDescriptions [xproc::descriptions -match {::xproc::Dummy-*}]
-    set gotDescriptionProcNames [dict keys $gotDescriptions]
+    set gotDescriptionProcNames [
+      lmap desc $gotDescriptions {dict get $desc name}
+    ]
     set wantDescriptionProcNames {::xproc::Dummy-1 ::xproc::Dummy-2}
     if {$gotDescriptionProcNames ne $wantDescriptionProcNames} {
       xproc::fail $t \
@@ -114,7 +118,9 @@ xproc::test -id 2 xproc::remove {{t} {
       }
     }
     set gotDescriptions [xproc::descriptions -match {::xproc::Dummy-*}]
-    set gotDescriptionProcNames [dict keys $gotDescriptions]
+    set gotDescriptionProcNames [
+      lmap desc $gotDescriptions {dict get $desc name}
+    ]
     if {[llength $gotDescriptionProcNames] != 0} {
       xproc::fail $t \
           "after remove descriptions all Dummy-* descriptions - got keys: $gotDescriptionProcNames, want: $wantDescriptionProcNames"
@@ -126,6 +132,66 @@ xproc::test -id 2 xproc::remove {{t} {
     rename xproc::Dummy-3 ""
   }
 }}
+
+
+xproc::test -id 3 xproc::remove {{t} {
+  # Test -interp
+  set safeInterp [interp create -safe]
+  try {
+    $safeInterp alias test ::xproc::test -interp $safeInterp
+    $safeInterp alias describe ::xproc::describe -interp $safeInterp
+    $safeInterp alias testFail ::xproc::fail
+    $safeInterp alias testCases ::xproc::testCases -interp $safeInterp
+
+    $safeInterp eval {
+      proc add5 {n} {
+        expr {$n+5}
+      }
+      proc add6 {n} {
+        expr {$n+6}
+      }
+      test -id 1 add6 {{t} {
+        testFail $t "this is a fail message"
+      }}
+      test -id 1 add5 {{t} {
+        set cases {
+          {input {3} result {8}}
+          {input {10} result {15}}
+        }
+        testCases $t $cases {{case} {dict with case {add5 $input}}}
+      }}
+      test -id 2 add5 {{t} {
+        testFail $t "this is a fail message"
+      }}
+      describe add5 {
+        This is a description of add5
+      }
+      describe add6 {
+        This is a description of add6
+      }
+    }
+
+    if {[llength [xproc::tests -interp $safeInterp]] != 3} {
+      return -code error "wrong number of tests in safeInterp"
+    }
+    xproc::remove all -interp $safeInterp -match {*add6}
+    set numDescriptions [llength [xproc::descriptions -interp $safeInterp]]
+    set wantNumDescriptions 1
+    if {$numDescriptions != $wantNumDescriptions} {
+      xproc::fail $t \
+          "got numDescriptions: $numDescriptions, want: $wantNumDescriptions"
+    }
+    set numTests [llength [xproc::tests -interp $safeInterp]]
+    set wantNumTests 2
+    if {$numTests != $wantNumTests} {
+      xproc::fail $t "got numTests: $numTests, want: $wantNumTests"
+    }
+  } finally {
+    interp delete $safeInterp
+    xproc::remove all -interp $safeInterp
+  }
+}}
+
 
 xproc::test -id 1 xproc::test {{t} {
   # Test errors
@@ -147,7 +213,7 @@ xproc::test -id 1 xproc::test {{t} {
      result {unknown option: -bob}}
     {input {-id 1 xproc::test {{t} {}}}
      returnCodes {error}
-     result {test already exists for id: 1}}
+     result {test already exists for procedure: ::xproc::test, id: 1}}
     {input {-interp "*" xproc::test {{t} {}}}
      returnCodes {error}
      result {interpreter doesn't exist: *}}
@@ -529,7 +595,7 @@ xproc::test -id 7 xproc::runTests {{t} {
     }
   } finally {
     interp delete $safeInterp
-    xproc::remove all -match {*add5}
+    xproc::remove all -interp $safeInterp
   }
 }}
 
@@ -543,7 +609,7 @@ xproc::test -id 1 xproc::descriptions {{t} {
   xproc::testCases $t $cases {{case} {
     dict with case {
       set got [xproc::descriptions {*}$input]
-      set numGot [dict size $got]
+      set numGot [llength $got]
       if {$numGot < $minNum || $numGot > $maxNum} {
         return -code error \
             "got num descriptions: $numGot, want >= $minNum && <= $maxNum"
@@ -562,7 +628,7 @@ xproc::test -id 2 xproc::descriptions {{t} {
   if {$numXprocExportedCommands < 5} {
     return -code error "too few exported xproc commands: $numXprocExportedCommands"
   }
-  set numXprocDescriptions [dict size [xproc::descriptions -match {*xproc*}]]
+  set numXprocDescriptions [llength [xproc::descriptions -match {*xproc*}]]
   if {$numXprocExportedCommands != $numXprocDescriptions} {
     xproc::fail $t "got num xproc descriptions: $numXprocDescriptions, want: $numXprocExportedCommands"
   }
@@ -581,10 +647,13 @@ xproc::test -id 3 xproc::descriptions {{t} {
     set got [
       xproc::descriptions -match {*TestHelpers::addNums *TestHelpers::waitMS}
     ]
-    set want [
-      dict create ::TestHelpers::addNums \
-          {A function to add a sequence of numbers together} \
-          ::TestHelpers::waitMS {Wait for a specified number of milliseconds}
+    set want [list \
+      [dict create interp {} \
+                   name ::TestHelpers::addNums \
+                   description {A function to add a sequence of numbers together}] \
+      [dict create interp {} \
+                   name ::TestHelpers::waitMS \
+                   description {Wait for a specified number of milliseconds}]
     ]
     if {$got ne $want} {
       xproc::fail $t "got: $got, want: $want"
@@ -596,11 +665,42 @@ xproc::test -id 3 xproc::descriptions {{t} {
 }}
 
 
+xproc::test -id 4 xproc::descriptions {{t} {
+  # Test -interp
+  set safeInterp [interp create -safe]
+  try {
+    $safeInterp alias describe ::xproc::describe -interp $safeInterp
+    $safeInterp eval {
+      proc add5 {n} {expr {$n+5}}
+      proc add6 {n} {expr {$n+6}}
+      proc add7 {n} {expr {$n+7}}
+      describe add5 {a description for add5}
+      describe add6 {a description for add6}
+      describe add7 {a description for add7}
+    }
+    set gotNum [llength [xproc::descriptions -interp $safeInterp]]
+    set wantNum 3
+    if {$gotNum != $wantNum} {
+      xproc::fail $t "gotNum: $gotNum, want: $wantNum"
+    }
+  } finally {
+    interp delete $safeInterp
+    xproc::remove all -interp $safeInterp
+  }
+}}
+
+
 xproc::test xproc::describe {{t} {
   set cases {
-    {input {DummyNotExist {{t} {}}}
+    {input {DummyNotExist {a description of DummNotExist}}
      returnCodes {error}
      result {procedureName doesn't exist: DummyNotExist}}
+    {input {xproc::describe  {a description of describe}}
+     returnCodes {error}
+     result {description already exists for procedure: ::xproc::describe}}
+    {input {-interp "*" xproc::describe {a description for describe}}
+     returnCodes {error}
+     result {interpreter doesn't exist: *}}
   }
   xproc::testCases $t $cases {{case} {
     dict with case {xproc::describe {*}$input}
@@ -608,11 +708,38 @@ xproc::test xproc::describe {{t} {
 }}
 
 
+xproc::test -id 2 xproc::describe {{t} {
+  # Test -interp
+  set safeInterp [interp create -safe]
+  try {
+    if {[llength [xproc::descriptions -interp $safeInterp]] > 0} {
+      return -error "descriptions already present for interpreter"
+    }
+    $safeInterp eval {
+      proc add5 {n} {expr {$n+5}}
+      proc add6 {n} {expr {$n+6}}
+      proc add7 {n} {expr {$n+7}}
+    }
+    xproc::describe -interp $safeInterp add5 {a description for add5}
+    xproc::describe -interp $safeInterp add6 {a description for add6}
+    xproc::describe -interp $safeInterp add7 {a description for add7}
+    set gotNum [llength [xproc::descriptions -interp $safeInterp]]
+    set wantNum 3
+    if {$gotNum != $wantNum} {
+      xproc::fail $t "gotNum: $gotNum, want: $wantNum"
+    }
+  } finally {
+    interp delete $safeInterp
+    xproc::remove all -interp $safeInterp
+  }
+}}
+
+
 xproc::test -id 1 xproc::tests {{t} {
   set cases {
     {input {-match {*xproc::tests *xproc::test}} minNum 5 maxNum 5}
     {input {-match {*xproc*}} minNum 5 maxNum 100}
-    {input {} minNum 5 maxNum 30}
+    {input {} minNum 5 maxNum 50}
   }
   xproc::testCases $t $cases {{case} {
     dict with case {
@@ -668,7 +795,7 @@ xproc::test -id 3 xproc::tests {{t} {
     }
   } finally {
     interp delete $safeInterp
-    xproc::remove all -match {*add5}
+    xproc::remove all -interp $safeInterp
   }
 }}
 
