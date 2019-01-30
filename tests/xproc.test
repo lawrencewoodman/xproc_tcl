@@ -713,7 +713,7 @@ xproc::test -id 2 xproc::describe {{t} {
   set safeInterp [interp create -safe]
   try {
     if {[llength [xproc::descriptions -interp $safeInterp]] > 0} {
-      return -error "descriptions already present for interpreter"
+      return -code error "descriptions already present for interpreter"
     }
     $safeInterp eval {
       proc add5 {n} {expr {$n+5}}
