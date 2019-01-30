@@ -65,6 +65,58 @@ xproc::test xproc::proc {{t} {
 }}
 
 
+xproc::test -id 2 xproc::proc {{t} {
+  # Test -interp
+  set safeInterp [interp create -safe]
+  try {
+    $safeInterp alias test ::xproc::test -interp $safeInterp
+    $safeInterp alias describe ::xproc::describe -interp $safeInterp
+    $safeInterp alias testFail ::xproc::fail
+    $safeInterp alias testCases ::xproc::testCases -interp $safeInterp
+
+    xproc::proc add5 {n} {
+      expr {$n+5}
+    } -test {{t} {
+      set cases {
+        {input {3} result {8}}
+        {input {10} result {15}}
+      }
+      testCases $t $cases {{case} {dict with case {add5 $input}}}
+    }} -description {
+      a description for add5
+    } -interp $safeInterp
+
+    xproc::proc add6 {n} {
+      expr {$n+6}
+    } -test {{t} {
+      testFail $t "this is a fail message"
+    }} -description {
+      a description for add6
+    } -interp $safeInterp
+
+    set numTests [llength [xproc::tests -interp $safeInterp]]
+    set numDescriptions [llength [xproc::descriptions -interp $safeInterp]]
+    set wantNumDescriptions 2
+    set wantNumTests 2
+    if {$numDescriptions != $wantNumDescriptions} {
+      xproc::fail $t \
+          "got numDescriptions: $numDescriptions, want: $wantNumDescriptions"
+    }
+    if {$numTests != $wantNumTests} {
+      xproc::fail $t "got numTests: $numTests, want: $wantNumTests"
+    }
+    set summary [xproc::runTests -interp $safeInterp]
+    set wantSummary [dict create total 2 passed 1 skipped 0 failed 1]
+    if {$summary ne $wantSummary} {
+      xproc::fail $t "got summary: $summary, want: $wantSummary"
+    }
+  } finally {
+    interp delete $safeInterp
+    xproc::remove all -interp $safeInterp
+  }
+}}
+
+
 xproc::test -id 1 xproc::remove {{t} {
   # Test errors
   set cases {

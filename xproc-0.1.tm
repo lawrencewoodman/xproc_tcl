@@ -20,9 +20,10 @@ namespace eval xproc {
 
 
 proc xproc::proc {procName procArgs procBody args} {
-  array set options {}
+  array set options {interp {}}
   while {[llength $args]} {
     switch -glob -- [lindex $args 0] {
+      -interp {set args [lassign $args - options(interp)]}
       -desc* {set args [lassign $args - options(description)]}
       -test {set args [lassign $args - options(test)]}
       -*      {return -code error "unknown option: [lindex $args 0]"}
@@ -33,14 +34,23 @@ proc xproc::proc {procName procArgs procBody args} {
     return -code error "invalid number of arguments"
   }
 
-  uplevel 1 [list proc $procName $procArgs $procBody]
+  if {$options(interp) eq {}} {
+    uplevel 1 [list proc $procName $procArgs $procBody]
+  } else {
+    $options(interp) eval [list proc $procName $procArgs $procBody]
+  }
 
   if {[info exists options(description)]} {
-    uplevel 1 [list xproc::describe $procName $options(description)]
+    uplevel 1 [
+      list xproc::describe -interp $options(interp) \
+                           $procName $options(description)
+    ]
   }
 
   if {[info exists options(test)]} {
-    uplevel 1 [list xproc::test $procName $options(test)]
+    uplevel 1 [
+      list xproc::test -interp $options(interp) $procName $options(test)
+    ]
   }
 }
 
@@ -798,10 +808,12 @@ line to see if everything is aligned properly
 xproc::describe xproc::proc {
   Create a Tcl procedure, like ::proc, but extended with extra switches
 
-  xproc::proc name args body ?-description description? ?-test lambda?
+  xproc::proc name args body ?switches?
 
   This extendeds ::proc by adding the following switches:
     -description description   Records the given description
+    -interp path               Creates the procedure in interpreter path.
+                               The default is the current interpreter.
     -test lambda               Records the given lambda to be used
                                to test this procedure.  The lambda has
                                one parameter which is the testRun.
