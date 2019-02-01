@@ -310,6 +310,7 @@ proc xproc::testCases {args} {
     return -code error "interpreter doesn't exist: $options(interp)"
   }
   lassign $args testRun cases lambda
+  set ns [TestRun ns $testRun]
 
   set i 0
   foreach case $cases {
@@ -320,9 +321,9 @@ proc xproc::testCases {args} {
     set returnCodes [lmap code $returnCodes {ReturnCodeToValue $code}]
     try {
       if {[info exists options(interp)]} {
-        set got [$options(interp) eval [list apply $lambda $case]]
+        set got [$options(interp) eval [list apply $lambda $ns $case]]
       } else {
-        set got [uplevel 1 [list apply $lambda $case]]
+        set got [uplevel 1 [list apply $lambda $ns $case]]
       }
       if {[dict exists $case result]} {
         set result [dict get $case result]
@@ -374,10 +375,10 @@ namespace eval xproc::TestRun {
   variable n 0
 }
 
-proc xproc::TestRun::new {} {
+proc xproc::TestRun::new {name} {
   variable runs
   variable n
-  dict set runs [incr n] [dict create failMessages {}]
+  dict set runs [incr n] [dict create failMessages {} name $name]
   return $n
 }
 
@@ -401,11 +402,19 @@ proc xproc::TestRun::hasFailed {testRun} {
   return [expr {[llength [dict get $runs $testRun failMessages]] > 0}]
 }
 
+proc xproc::TestRun::ns {testRun} {
+  variable runs
+  set name [dict get $runs $testRun name]
+  return [namespace qualifiers $name]
+}
+
+
 
 proc xproc::RunTest {interp test verbose channel match} {
   dict set test skip false
   dict set test fail false
   set procName [dict get $test name]
+  set ns [namespace qualifiers $procName]
   set id [dict get $test id]
   if {$interp ne [dict get $test interp]} {
     return $test
@@ -418,7 +427,7 @@ proc xproc::RunTest {interp test verbose channel match} {
     return $test
   }
 
-  set testRun [TestRun new]
+  set testRun [TestRun new $procName]
   if {$verbose >= 2} {
     puts $channel "=== RUN   $procName/$id"
   }
@@ -426,9 +435,9 @@ proc xproc::RunTest {interp test verbose channel match} {
   try {
     dict with test {
       if {$interp ne {}} {
-        $interp eval [list apply $lambda $testRun]
+        $interp eval [list apply $lambda $ns $testRun]
       } else {
-        uplevel 1 [list apply $lambda $testRun]
+        uplevel 1 [list apply $lambda $ns $testRun]
       }
     }
   } on error {result returnOptions} {
@@ -493,7 +502,7 @@ xproc::proc xproc::LFilter {vars list lambda} {
     }
   }
   return $result
-} -test {{t} {
+} -test {{ns t} {
   set cases {
     {input {{} {1 2 3 4} {{vars e} {expr {$e != 3}}}} result {1 2 4}}
     {input {{} {} {{vars e} {expr {$e != 3}}}} result {}}
@@ -501,8 +510,8 @@ xproc::proc xproc::LFilter {vars list lambda} {
       expr {$e != [dict get $vars n]}
     }}} result {2 3 4}}
   }
-  xproc::testCases $t $cases {{case} {
-    dict with case {xproc::LFilter {*}$input}
+  xproc::testCases $t $cases {{ns case} {
+    dict with case {${ns}::LFilter {*}$input}
   }}
 }}
 
@@ -513,7 +522,7 @@ xproc::proc xproc::ReturnCodeToValue {code} {
     return [dict get $returnCodeValues $code]
   }
   return $code
-} -test {{t} {
+} -test {{ns t} {
   set cases {
     {input ok result 0}
     {input error result 1}
@@ -524,8 +533,8 @@ xproc::proc xproc::ReturnCodeToValue {code} {
     {input 0 result 0}
     {input 7 result 7}
   }
-  xproc::testCases $t $cases {{case} {
-    dict with case {xproc::ReturnCodeToValue $input}
+  xproc::testCases $t $cases {{ns case} {
+    dict with case {${ns}::ReturnCodeToValue $input}
   }}
 }}
 
@@ -545,7 +554,7 @@ xproc::proc xproc::MakeSummary {interp tests} {
   return [
     dict create total $total passed $passed skipped $skipped failed $failed
   ]
-} -test {{t} {
+} -test {{ns t} {
   set cases [list \
     [dict create input {{} {}} \
      result [dict create total 0 passed 0 skipped 0 failed 0]] \
@@ -587,8 +596,8 @@ xproc::proc xproc::MakeSummary {interp tests} {
                         {interp {} name name-2 id 1 skip false fail false}}} \
      result [dict create total 1 passed 0 skipped 1 failed 0]] \
   ]
-  xproc::testCases $t $cases {{case} {
-    dict with case {xproc::MakeSummary {*}$input}
+  xproc::testCases $t $cases {{ns case} {
+    dict with case {${ns}::MakeSummary {*}$input}
   }}
 }}
 
@@ -599,7 +608,7 @@ xproc::proc xproc::MatchProcName {matchPatterns procName} {
     if {[string match $matchPattern $procName]} {return true}
   }
   return false
-} -test {{t} {
+} -test {{ns t} {
   set cases {
     {input {{"*"} someName} result true}
     {input {{"*bob*" "*"} someName} result true}
@@ -608,8 +617,8 @@ xproc::proc xproc::MatchProcName {matchPatterns procName} {
     {input {{"*bob*" "*fred*"} somefredName} result true}
     {input {{"*bob*" "*fred*"} someharroldName} result false}
   }
-  xproc::testCases $t $cases {{case} {
-    dict with case {xproc::MatchProcName {*}$input}
+  xproc::testCases $t $cases {{ns case} {
+    dict with case {${ns}::MatchProcName {*}$input}
   }}
 }}
 
@@ -628,7 +637,7 @@ xproc::proc xproc::IndentEachLine {text numSpaces ignoreLines} {
     incr i
   }
   return [join $indentedLines "\n"]
-} -test {{t} {
+} -test {{ns t} {
   set text {this is some text
 and a little more
 
@@ -641,7 +650,7 @@ and some more here
           and some more here
               this has some more
            and a little less indented}
-  set got [xproc::IndentEachLine $text 10 1]
+  set got [${ns}::IndentEachLine $text 10 1]
   if {$got ne $want} {
     xproc::fail $t "got: $got, want: $want"
   }
@@ -658,15 +667,15 @@ xproc::proc xproc::CountIndent {line} {
     }
   }
   return $count
-} -test {{t} {
+} -test {{ns t} {
   set cases {
     {input {hello this is some text} result 0}
     {input {  hello this is some text} result 2}
     {input {  hello this is some text   } result 2}
     {input {    hello this is some text } result 4}
   }
-  xproc::testCases $t $cases {{case} {
-    dict with case {xproc::CountIndent $input}
+  xproc::testCases $t $cases {{ns case} {
+    dict with case {${ns}::CountIndent $input}
   }}
 }}
 
@@ -680,7 +689,7 @@ xproc::proc xproc::StripIndent {lines numSpaces} {
     lappend newLines [string range $line $i end]
   }
   return $newLines
-} -test {{t} {
+} -test {{ns t} {
   set cases {
     {input {
       { "hello some text"
@@ -730,7 +739,7 @@ xproc::proc xproc::StripIndent {lines numSpaces} {
   set i 0
   foreach c $cases {
     dict with c {
-      set got [xproc::StripIndent {*}$input]
+      set got [${ns}::StripIndent {*}$input]
       if {[llength $got] != [llength $result]} {
         xproc::fail $t "($i) got: $got, want: $result"
       } else {
@@ -761,7 +770,7 @@ xproc::proc xproc::TidyDescription {description} {
   set normalIndent [CountIndent [lindex $lines 0]]
   set lines [StripIndent $lines $normalIndent]
   return [join $lines "\n"]
-} -test {{t} {
+} -test {{ns t} {
   set cases {
     { input {this is a description}
       result {this is a description}}
@@ -798,8 +807,8 @@ line to see if everything is aligned properly
         line to see if everything is aligned properly}}
   }
 
-  xproc::testCases $t $cases {{case} {
-    dict with case {xproc::TidyDescription $input}
+  xproc::testCases $t $cases {{ns case} {
+    dict with case {${ns}::TidyDescription $input}
   }}
 }}
 
