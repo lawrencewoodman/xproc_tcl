@@ -829,8 +829,11 @@ xproc::describe xproc::proc {
     -interp path               Creates the procedure in interpreter path.
                                The default is the current interpreter.
     -test lambda               Records the given lambda to be used
-                               to test this procedure.  The lambda has
-                               one parameter which is the testRun.
+                               to test this procedure.
+
+  The test lambda has two parameters:
+    ns        The namespace qualifiers of the procedure being tested
+    testRun   The testRun object which identifies this test
 }
 
 xproc::describe xproc::remove {
@@ -870,7 +873,9 @@ xproc::describe xproc::testCases {
     returnCodes  Return codes to test against, the default is {ok return}
   Extra keys may be present and therefore passed to the lambda.
 
-  The lambda has one parameter which is the test case.
+  The lambda has two parameters:
+    ns        The namespace qualifiers of the procedure being tested
+    case      The test case described above
 }
 
 
@@ -895,7 +900,9 @@ xproc::describe xproc::test {
                    The default is the current interpreter.
     --             Marks the end of switches
 
-  The lambda has one parameter which is the testRun
+  The test lambda has two parameters:
+    ns        The namespace qualifiers of the procedure being tested
+    testRun   The testRun object which identifies this test
 }
 
 xproc::describe xproc::describe {
