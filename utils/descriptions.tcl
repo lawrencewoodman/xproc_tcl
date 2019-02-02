@@ -9,13 +9,18 @@ set ModuleDir [file normalize [file join $ThisScriptDir ..]]
 
 package require xproc
 
-set xprocDescriptions [xproc::descriptions -match {::xproc::*}]
-set xprocDescriptions [lsort -stride 2 -index 0 $xprocDescriptions]
+proc compareDescriptions {a b} {
+  string compare [dict get $a name] [dict get $b name]
+}
 
-dict for {procedureName desc} $xprocDescriptions {
-  set procedureName [string range $procedureName 2 end]
-  puts $procedureName
-  puts "[string repeat "=" [string length $procedureName]]\n"
-  puts $desc
-  puts "\n\n"
+set xprocDescriptions [xproc::descriptions -match {::xproc::*}]
+set xprocDescriptions [lsort -command compareDescriptions $xprocDescriptions]
+
+foreach desc $xprocDescriptions {
+  dict with desc {
+    puts $name
+    puts "[string repeat "=" [string length $name]]\n"
+    puts $description
+    puts "\n\n"
+  }
 }
