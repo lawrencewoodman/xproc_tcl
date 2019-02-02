@@ -347,6 +347,43 @@ xproc::test -id 3 xproc::test {{ns t} {
 }}
 
 
+xproc::test -id 4 xproc::test {{ns t} {
+  # Test -interp
+  set safeInterp [interp create -safe]
+  $safeInterp alias testCases ::xproc::testCases -interp $safeInterp
+  $safeInterp eval {
+    proc hello {name} {
+      return "hello $name"
+    }
+  }
+  try {
+    ${ns}::test -interp $safeInterp hello {{ns t} {
+      set cases {
+        {input fred result {hello fred}}
+        {input mary result {hello mary}}
+      }
+      testCases $t $cases {{ns case} {
+        dict with case {${ns}::hello $input}
+      }}
+    }}
+    set summary [${ns}::runTests -verbose 0 -interp $safeInterp]
+    set wantPassed 1
+    set wantFailed 0
+    dict with summary {
+      if {$passed != $wantPassed} {
+        xproc::fail $t "got passed: $passed, want: $wantPassed"
+      }
+      if {$failed != $wantFailed} {
+        xproc::fail $t "got failed: $failed, want: $wantFailed"
+      }
+    }
+  } finally {
+    interp delete $safeInterp
+    xproc::remove all -interp $safeInterp
+  }
+}}
+
+
 xproc::test -id 1 xproc::runTests {{ns t} {
   # Run all xproc tests except this one to prevent an infinite loop
   set ch [TestHelpers::channelMonitor new]
@@ -831,7 +868,7 @@ xproc::test -id 2 xproc::describe {{ns t} {
 
 xproc::test -id 1 xproc::tests {{ns t} {
   set cases {
-    {input {-match {*xproc::tests *xproc::test}} minNum 6 maxNum 6}
+    {input {-match {*xproc::tests *xproc::test}} minNum 7 maxNum 7}
     {input {-match {*xproc*}} minNum 5 maxNum 100}
     {input {} minNum 5 maxNum 50}
   }
