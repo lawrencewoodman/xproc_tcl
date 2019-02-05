@@ -227,14 +227,7 @@ proc xproc::runTests {args} {
               $options(channel) $options(match)
     }
   ]
-  set summary [MakeSummary $options(interp) $tests]
-  if {$options(verbose) >= 1} {
-    dict with summary {
-      puts $options(channel) \
-      "\nTotal: $total,  Passed: $passed,  Skipped: $skipped,  Failed: $failed"
-    }
-  }
-  return $summary
+  return [MakeSummary $options(interp) $tests]
 }
 
 
@@ -256,9 +249,11 @@ proc xproc::runTestFiles {args} {
 
   set totalSummary [dict create total 0 passed 0 skipped 0 failed 0]
   set testFiles [GetTestFiles $options(dir)]
+  set testFiles [lsort $testFiles]
   foreach file $testFiles {
     set summary [
-      RunTestFile $options(dir) $file $options(match) $options(channel)
+      RunTestFile $options(dir) $file $options(match) \
+                  $options(verbose) $options(channel)
     ]
     set totalSummary [SumDicts $totalSummary $summary]
   }
@@ -582,15 +577,17 @@ xproc::proc SumDicts {a b} {
 }}
 
 
-proc xproc::RunTestFile {dir file match channel} {
+proc xproc::RunTestFile {dir file match verbose channel} {
   set timeStamp [clock format [clock seconds]]
-  puts $channel "[FileWithoutDir $dir $file]:  Began at $timeStamp"
+  if {$verbose == 2} {
+    puts $channel "\n[FileWithoutDir $dir $file]:  Began at $timeStamp"
+  }
   set interp [interp create]
   if {$interp ne "stdout"} {interp transfer {} $channel $interp}
   try {
     $interp eval [list source $file]
     set summary [$interp eval [
-      list xproc::runTests -verbose 1 -channel $channel -match $match
+      list xproc::runTests -verbose $verbose -channel $channel -match $match
     ]]
   } finally {
     if {$interp ne "stdout"} {interp transfer $interp $channel {}}
@@ -598,10 +595,14 @@ proc xproc::RunTestFile {dir file match channel} {
     xproc::remove all -interp $interp
   }
   dict with summary {
-    puts $channel "[FileWithoutDir $dir $file]:  Ended at $timeStamp"
-    puts -nonewline $channel "[FileWithoutDir $dir $file]:  "
-    puts $channel \
+    if {$verbose == 2} {
+      puts $channel "[FileWithoutDir $dir $file]:  Ended at $timeStamp"
+    }
+    if {$verbose > 0} {
+      puts -nonewline $channel "[FileWithoutDir $dir $file]:  "
+      puts $channel \
         "Total: $total,  Passed: $passed,  Skipped: $skipped,  Failed: $failed"
+    }
   }
   return $summary
 }
@@ -1045,8 +1046,8 @@ xproc::describe xproc::runTests {
                           patternList, the default is {"*"}
     -verbose level        Controls the level of output to stdout:
                             0  None
-                            1  Summary and failing tests
-                            2  Summary and all tests
+                            1  Failing tests
+                            2  All tests
                           The default is 1
 }
 
@@ -1062,8 +1063,8 @@ xproc::describe xproc::runTestFiles {
                           patternList.  The default is {"*"}
     -verbose level        Controls the level of output to stdout:
                             0  None
-                            1  Summary and failing tests
-                            2  Summary and all tests
+                            1  Failing tests
+                            2  All tests
                           The default is 1
 }
 
