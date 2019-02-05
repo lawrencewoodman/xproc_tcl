@@ -4,6 +4,7 @@
 # Licensed under an MIT licence.  Please see LICENCE.md for details.
 
 package require Tcl 8.6
+package require fileutil::traverse
 
 namespace eval xproc {
   namespace export {[a-z]*}
@@ -234,6 +235,34 @@ proc xproc::runTests {args} {
     }
   }
   return $summary
+}
+
+
+proc xproc::runTestFiles {args} {
+  array set options {channel stdout match {"*"} verbose 1 dir .}
+  while {[llength $args]} {
+    switch -glob -- [lindex $args 0] {
+      -channel {set args [lassign $args - options(channel)]}
+      -dir* {set args [lassign $args - options(dir)]}
+      -match {set args [lassign $args - options(match)]}
+      -verbose {set args [lassign $args - options(verbose)]}
+      -*      {return -code error "unknown option: [lindex $args 0]"}
+      default break
+    }
+  }
+  if {[llength $args] > 0} {
+    return -code error "invalid number of arguments"
+  }
+
+  set totalSummary [dict create total 0 passed 0 skipped 0 failed 0]
+  set testFiles [GetTestFiles $options(dir)]
+  foreach file $testFiles {
+    set summary [
+      RunTestFile $options(dir) $file $options(match) $options(channel)
+    ]
+    set totalSummary [SumDicts $totalSummary $summary]
+  }
+  return $totalSummary
 }
 
 
@@ -491,6 +520,90 @@ proc xproc::DescriptionExists {descriptions interp name} {
     }
   }
   return false
+}
+
+
+proc xproc::GetTestFiles {dir} {
+  set contentWalker [::fileutil::traverse %AUTO% [file normalize $dir]]
+  set files {}
+  $contentWalker foreach file {
+    if {[file isfile $file] && [file extension $file] eq ".test"} {
+      lappend files $file
+    }
+  }
+
+  # Delete the contentWalker command because otherwise it can
+  # be exported and confuses the tests
+  rename $contentWalker ""
+  return $files
+}
+
+
+xproc::proc xproc::FileWithoutDir {dir file} {
+  set dirParts [file split [file normalize $dir]]
+  set fileParts [file split [file normalize $file]]
+  set numSame 0
+  foreach dirPart $dirParts filePart $fileParts {
+    if {$dirPart eq $filePart} {
+      incr numSame
+    } else {
+      break
+    }
+  }
+  file join {*}[lrange $fileParts $numSame end]
+} -test {{ns t} {
+  set cases [list \
+    [dict create input [list [file join tmp a b] [file join tmp a b c]] \
+                 result c] \
+    [dict create input [list [file join tmp a b] [file join somewhere a b]] \
+                 result [file join somewhere a b]] \
+  ]
+
+  xproc::testCases $t $cases {{ns case} {
+    dict with case {${ns}::FileWithoutDir {*}$input}
+  }}
+}}
+
+
+xproc::proc SumDicts {a b} {
+  dict map {k v} $a {
+    expr {$v + [dict get $b $k]}
+  }
+} -test {{ns t} {
+  set cases {
+    {input {{total 7 passed 3} {total 3 passed 4}}
+     result {total 10 passed 7}}
+    {input {{t 7 p 3 s 2} {t 3 p 4 s 1}}
+     result {t 10 p 7 s 3}}
+  }
+  xproc::testCases $t $cases {{ns case} {
+    dict with case {${ns}::SumDicts {*}$input}
+  }}
+}}
+
+
+proc xproc::RunTestFile {dir file match channel} {
+  set timeStamp [clock format [clock seconds]]
+  puts $channel "[FileWithoutDir $dir $file]:  Began at $timeStamp"
+  set interp [interp create]
+  if {$interp ne "stdout"} {interp transfer {} $channel $interp}
+  try {
+    $interp eval [list source $file]
+    set summary [$interp eval [
+      list xproc::runTests -verbose 1 -channel $channel -match $match
+    ]]
+  } finally {
+    if {$interp ne "stdout"} {interp transfer $interp $channel {}}
+    interp delete $interp
+    xproc::remove all -interp $interp
+  }
+  dict with summary {
+    puts $channel "[FileWithoutDir $dir $file]:  Ended at $timeStamp"
+    puts -nonewline $channel "[FileWithoutDir $dir $file]:  "
+    puts $channel \
+        "Total: $total,  Passed: $passed,  Skipped: $skipped,  Failed: $failed"
+  }
+  return $summary
 }
 
 
@@ -930,6 +1043,23 @@ xproc::describe xproc::runTests {
                           path.  The default is the current interpreter.
     -match patternList    Matches procedureNames against patterns in
                           patternList, the default is {"*"}
+    -verbose level        Controls the level of output to stdout:
+                            0  None
+                            1  Summary and failing tests
+                            2  Summary and all tests
+                          The default is 1
+}
+
+xproc::describe xproc::runTestFiles {
+  Load and run test files
+
+  xproc::runTests ?switches?
+
+  The switches do the following:
+    -channel channelID    A channel to send output to. The default is stdout.
+    -dir directory        The directory to start running the *.test files
+    -match patternList    Matches procedureNames against patterns in
+                          patternList.  The default is {"*"}
     -verbose level        Controls the level of output to stdout:
                             0  None
                             1  Summary and failing tests

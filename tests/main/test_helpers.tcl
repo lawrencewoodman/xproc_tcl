@@ -47,6 +47,14 @@ proc TestHelpers::channelMonitor::getWriteData {channelID} {
   return [dict get $channels $channelID writeData]
 }
 
+proc TestHelpers::matchOutputLines {t gotLines wantLines} {
+  foreach gotLine $gotLines wantLine $wantLines {
+    if {![regexp $wantLine $gotLine]} {
+      xproc::fail $t "got output line: $gotLine, want: $wantLine"
+    }
+  }
+}
+
 proc TestHelpers::addNums {args} {
   return [::tcl::mathop::+ {*}$args]
 }

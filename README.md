@@ -10,7 +10,8 @@ This module extends `proc` to provide test and description functionality.
 
 Requirements
 ------------
-*  Tcl 8.6+
+* Tcl 8.6+
+* Tcllib
 
 Installation
 ------------

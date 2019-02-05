@@ -1,0 +1,45 @@
+# Add module dir to tm paths
+set ThisScriptDir [file dirname [info script]]
+set ModuleDir [file normalize [file join $ThisScriptDir ..]]
+::tcl::tm::path add $ModuleDir
+package require xproc
+xproc::remove all
+
+xproc::proc add5 {n} {
+  expr {$n + 5}
+} -test {{ns t} {
+  set cases {
+    {input 4 result 9}
+    {input 3 result 8}
+  }
+  xproc::testCases $t $cases {{ns case} {
+    dict with case {${ns}::add5 $input}
+  }}
+}}
+
+
+xproc::proc add6 {n} {
+  expr {$n + 6}
+} -test {{ns t} {
+  set cases {
+    {input 4 result 10}
+    {input 3 result 9}
+  }
+  xproc::testCases $t $cases {{ns case} {
+    dict with case {${ns}::add6 $input}
+  }}
+}}
+
+
+# This one should fail one of the test cases
+xproc::proc add7 {n} {
+  expr {$n + 7}
+} -test {{ns t} {
+  set cases {
+    {input 4 result 10}
+    {input 3 result 8}
+  }
+  xproc::testCases $t $cases {{ns case} {
+    dict with case {${ns}::add6 $input}
+  }}
+}}

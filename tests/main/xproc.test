@@ -1,19 +1,10 @@
-package require tcltest
-namespace import tcltest::*
-
 # Add module dir to tm paths
 set ThisScriptDir [file dirname [info script]]
-set ModuleDir [file normalize [file join $ThisScriptDir ..]]
+set ModuleDir [file normalize [file join $ThisScriptDir .. ..]]
 ::tcl::tm::path add $ModuleDir
-
-source [file join $ThisScriptDir test_helpers.tcl]
-
 package require xproc
 
-
-################################
-# tcltest is at bottom of file
-################################
+source [file join $ThisScriptDir test_helpers.tcl]
 
 
 xproc::test xproc::proc {{ns t} {
@@ -105,7 +96,7 @@ xproc::test -id 2 xproc::proc {{ns t} {
     if {$numTests != $wantNumTests} {
       xproc::fail $t "got numTests: $numTests, want: $wantNumTests"
     }
-    set summary [${ns}::runTests -interp $safeInterp]
+    set summary [${ns}::runTests -verbose 0 -interp $safeInterp]
     set wantSummary [dict create total 2 passed 1 skipped 0 failed 1]
     if {$summary ne $wantSummary} {
       xproc::fail $t "got summary: $summary, want: $wantSummary"
@@ -413,7 +404,7 @@ xproc::test -id 1 xproc::runTests {{ns t} {
   set channelOutput [TestHelpers::channelMonitor getWriteData $ch]
   if {![regexp $wantChannelOutput $channelOutput]} {
     xproc::fail $t \
-        "got channelOutput: $channelOutput, want: $wantChannelOutput"
+        "got channelOutput:\n$channelOutput, want:\n$wantChannelOutput"
   }
   close $ch
 }}
@@ -469,7 +460,7 @@ xproc::test -id 3 xproc::runTests {{ns t} {
     ${ns}::runTests -verbose 0 -channel $ch -match {*xproc::t*}
     set channelOutput [TestHelpers::channelMonitor::getWriteData $ch]
     if {$channelOutput ne ""} {
-      xproc::fail $t "incorrect channel output: $channelOutput"
+      xproc::fail $t "incorrect channel output:\n$channelOutput"
     }
   } finally {
     close $ch
@@ -512,11 +503,7 @@ xproc::test -id 4 xproc::runTests {{ns t} {
         {Total: \d+,  Passed: 1,  Skipped: \d+,  Failed: 3} \
         {}
     ]
-    foreach gotLine $channelLines wantLine $wantLines {
-      if {![regexp $wantLine $gotLine]} {
-        xproc::fail $t "got output line: $gotLine, want: $wantLine"
-      }
-    }
+    TestHelpers::matchOutputLines $t $channelLines $wantLines
   } finally {
     xproc::remove all -match {*TestHelpers::addNums *TestHelpers::waitMS}
     close $ch
@@ -731,6 +718,54 @@ xproc::test -id 7 xproc::runTests {{ns t} {
 }}
 
 
+xproc::test -id 1 xproc::runTestFiles {{ns t} {
+  global ThisScriptDir
+  set ch [TestHelpers::channelMonitor new]
+  try {
+    set testFilesDir [file join $ThisScriptDir .. extra]
+    set summary [
+      ${ns}::runTestFiles -dir $testFilesDir \
+                          -verbose 1 \
+                          -channel $ch \
+    ]
+    set wantSummary [dict create total 6 passed 4 skipped 0 failed 2]
+    if {$summary ne $wantSummary} {
+      xproc::fail $t "got summary: $summary, want: $wantSummary"
+    }
+
+    set wantChannelOutput \
+        "\nTotal: \\d+,  Passed: \\d+,  Skipped: \\d+,  Failed: 0\n"
+    set channelOutput [TestHelpers::channelMonitor getWriteData $ch]
+    set channelLines [split $channelOutput "\n"]
+    set wantLines [list \
+        {greeter.test:  Began at.*\d\d\d\d$} \
+        {--- FAIL  ::greet\/2 \(0.00s\)} \
+        {          this is a fail message} \
+        {} \
+        {Total: 2,  Passed: 1,  Skipped: 0,  Failed: 1} \
+        {greeter.test:  Ended at.*\d\d\d\d$} \
+        {greeter.test:  Total: 2,  Passed: 1,  Skipped: 0,  Failed: 1} \
+        {adder.test:  Began at.*\d\d\d\d$} \
+        {--- FAIL  ::add7\/1 \(0.00s\)} \
+        {          \(1\) got: 9, want: 8} \
+        {} \
+        {Total: 3,  Passed: 2,  Skipped: 0,  Failed: 1} \
+        {adder.test:  Ended at.*\d\d\d\d$} \
+        {adder.test:  Total: 3,  Passed: 2,  Skipped: 0,  Failed: 1} \
+        {waver.test:  Began at.*\d\d\d\d$} \
+        {} \
+        {Total: 1,  Passed: 1,  Skipped: 0,  Failed: 0} \
+        {waver.test:  Ended at.*\d\d\d\d$} \
+        {waver.test:  Total: 1,  Passed: 1,  Skipped: 0,  Failed: 0} \
+        {} \
+    ]
+    TestHelpers::matchOutputLines $t $channelLines $wantLines
+  } finally {
+    close $ch
+  }
+}}
+
+
 xproc::test -id 1 xproc::descriptions {{ns t} {
   set cases {
     {input {-match {*xproc::descriptions *xproc::test}} minNum 2 maxNum 2}
@@ -759,9 +794,10 @@ xproc::test -id 2 xproc::descriptions {{ns t} {
   if {$numXprocExportedCommands < 5} {
     return -code error "too few exported xproc commands: $numXprocExportedCommands"
   }
-  set numXprocDescriptions [llength [${ns}::descriptions -match {*xproc*}]]
-  if {$numXprocExportedCommands != $numXprocDescriptions} {
-    xproc::fail $t "got num xproc descriptions: $numXprocDescriptions, want: $numXprocExportedCommands"
+  foreach expCmd $exportedCommands {
+    if {[llength [${ns}::descriptions -match [list $expCmd]]] == 0} {
+      xproc::fail $t "no description for: $expCmd"
+    }
   }
 }}
 
@@ -929,23 +965,3 @@ xproc::test -id 3 xproc::tests {{ns t} {
     xproc::remove all -interp $safeInterp
   }
 }}
-
-
-
-test runTests-1 {Run all xproc tests} -body {
-  set summary [xproc::runTests -verbose 1]
-  dict with summary {
-    set wantTotal [expr {$passed+$failed+$skipped}]
-    set result [
-      list [expr {$total == $wantTotal}] [expr {$passed > 20}] \
-           [expr {$skipped == 0}] [expr {$failed == 0}]
-    ]
-  }
-  set result
-} -match regexp -output {
-Total: \d+,  Passed: \d+,  Skipped: 0,  Failed: 0
-} -result {1 1 1 1}
-
-
-
-cleanupTests
