@@ -6,7 +6,7 @@ addons:
 
 before_install:
   - git clone --depth=1 --branch=master https://github.com/lawrencewoodman/installmodule_tcl.git
-  - tclsh installmodule_tcl/installmodule.tcl ../xproc*.tm
+  - tclsh installmodule_tcl/installmodule.tcl xproc*.tm
 
 script:
   # Run the tests
