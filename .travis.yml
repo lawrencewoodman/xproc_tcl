@@ -3,6 +3,7 @@ addons:
   apt:
     packages:
       - tcl
+      - tcllib
 
 before_install:
   - git clone --depth=1 --branch=master https://github.com/lawrencewoodman/installmodule_tcl.git
